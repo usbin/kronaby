@@ -1,5 +1,4 @@
 import Foundation
-import MessagePack
 
 struct ButtonEvent: Equatable {
     let button: Int    // 0=top, 1=crown, 2=bottom
@@ -33,77 +32,80 @@ struct ButtonEvent: Equatable {
 
 final class KronabyProtocol {
     func encode(commandId: Int, value: Any) -> Data {
-        let msgValue = convertToMessagePackValue(value)
-        let map: MessagePackValue = .map([.int(Int64(commandId)): msgValue])
-        return pack(map)
+        let msgValue = anyToMsgPack(value)
+        let map = MsgPackValue.map([(key: .int(Int64(commandId)), value: msgValue)])
+        return MsgPackEncoder.encode(map)
     }
 
     func decode(data: Data) -> Any? {
-        guard let unpacked = try? unpack(data) else { return nil }
-        return convertFromMessagePackValue(unpacked.value)
+        guard let value = MsgPackDecoder.decode(data) else { return nil }
+        return msgPackToAny(value)
     }
 
     func parseButtonEvent(_ decoded: Any?, commandMap: [String: Int]) -> ButtonEvent? {
         guard let dict = decoded as? [Int: Any],
               let buttonCmdId = commandMap["button"],
-              let arr = dict[buttonCmdId] as? [Int],
-              arr.count >= 2 else { return nil }
-        return ButtonEvent(button: arr[0], eventType: arr[1])
+              let arr = dict[buttonCmdId] as? [Any],
+              arr.count >= 2,
+              let button = arr[0] as? Int,
+              let eventType = arr[1] as? Int else { return nil }
+        return ButtonEvent(button: button, eventType: eventType)
     }
 
-    // MARK: - MessagePack Helpers
+    // MARK: - Conversion helpers
 
-    private func convertToMessagePackValue(_ value: Any) -> MessagePackValue {
+    private func anyToMsgPack(_ value: Any) -> MsgPackValue {
         switch value {
+        case let b as Bool:
+            return .bool(b)
         case let i as Int:
             return .int(Int64(i))
         case let s as String:
             return .string(s)
-        case let b as Bool:
-            return .bool(b)
         case let arr as [Any]:
-            return .array(arr.map { convertToMessagePackValue($0) })
+            return .array(arr.map { anyToMsgPack($0) })
         case let dict as [Int: Any]:
-            var map: [MessagePackValue: MessagePackValue] = [:]
-            for (k, v) in dict {
-                map[.int(Int64(k))] = convertToMessagePackValue(v)
-            }
-            return .map(map)
+            let pairs = dict.map { (key: MsgPackValue.int(Int64($0.key)), value: anyToMsgPack($0.value)) }
+            return .map(pairs)
         default:
             return .nil
         }
     }
 
-    private func convertFromMessagePackValue(_ value: MessagePackValue) -> Any? {
+    private func msgPackToAny(_ value: MsgPackValue) -> Any? {
         switch value {
         case .int(let i): return Int(i)
         case .uint(let u): return Int(u)
         case .string(let s): return s
         case .bool(let b): return b
-        case .float(let f): return f
-        case .double(let d): return d
-        case .array(let arr): return arr.compactMap { convertFromMessagePackValue($0) }
-        case .map(let map):
-            // Try to return as [String: Int] for command map, otherwise [Int: Any]
+        case .nil: return nil
+        case .array(let arr): return arr.compactMap { msgPackToAny($0) }
+        case .map(let pairs):
+            // command map response: {string: int} — used during handshake
             var stringDict: [String: Int] = [:]
             var intDict: [Int: Any] = [:]
-            var isStringKeyed = true
+            var allStringKeyed = true
 
-            for (k, v) in map {
-                if case .string(let key) = k, case .int(let val) = v {
+            for pair in pairs {
+                if case .string(let key) = pair.key, case .int(let val) = pair.value {
+                    stringDict[key] = Int(val)
+                } else if case .string(let key) = pair.key, case .uint(let val) = pair.value {
                     stringDict[key] = Int(val)
                 } else {
-                    isStringKeyed = false
+                    allStringKeyed = false
                 }
-                if case .int(let key) = k {
-                    intDict[Int(key)] = convertFromMessagePackValue(v)
-                } else if case .uint(let key) = k {
-                    intDict[Int(key)] = convertFromMessagePackValue(v)
+
+                let intKey: Int?
+                switch pair.key {
+                case .int(let k): intKey = Int(k)
+                case .uint(let k): intKey = Int(k)
+                default: intKey = nil
+                }
+                if let k = intKey {
+                    intDict[k] = msgPackToAny(pair.value)
                 }
             }
-            return isStringKeyed && !stringDict.isEmpty ? stringDict : intDict
-        case .nil: return nil
-        default: return nil
+            return allStringKeyed && !stringDict.isEmpty ? stringDict : intDict
         }
     }
 }

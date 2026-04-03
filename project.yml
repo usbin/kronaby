@@ -11,11 +11,6 @@ settings:
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: 1
 
-packages:
-  MessagePack:
-    url: https://github.com/fuzi/MessagePack.swift.git
-    from: "4.0.0"
-
 targets:
   Kronaby:
     type: application
@@ -29,8 +24,6 @@ targets:
         CODE_SIGN_IDENTITY: ""
         CODE_SIGNING_REQUIRED: "NO"
         CODE_SIGNING_ALLOWED: "NO"
-    dependencies:
-      - package: MessagePack
     entitlements:
       path: Sources/Kronaby.entitlements
       properties:

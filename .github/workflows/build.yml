@@ -22,12 +22,6 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
-      - name: Resolve Swift packages
-        run: |
-          xcodebuild -resolvePackageDependencies \
-            -project Kronaby.xcodeproj \
-            -scheme Kronaby
-
       - name: Build (no signing)
         run: |
           xcodebuild build \
