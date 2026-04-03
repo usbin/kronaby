@@ -141,7 +141,7 @@ final class BLEManager: NSObject, ObservableObject {
         let data = protocol_.encode(commandId: cmdId, value: value)
         let hex = data.map { String(format: "%02X", $0) }.joined()
         log("CMD: \(name)(\(cmdId)) → \(hex)")
-        peripheral?.writeValue(data, for: char, type: .withoutResponse)
+        peripheral?.writeValue(data, for: char, type: .withResponse)
     }
 
     // MARK: - Connection Sequence
