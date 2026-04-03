@@ -27,6 +27,17 @@ final class BLEManager: NSObject, ObservableObject {
     private var handshakeStep = 0
     private var handshakeResponseCount = 0
 
+    private static let savedPeripheralKey = "kronaby_peripheral_uuid"
+
+    private func savePeripheralID(_ uuid: UUID) {
+        UserDefaults.standard.set(uuid.uuidString, forKey: Self.savedPeripheralKey)
+    }
+
+    private func loadSavedPeripheralID() -> UUID? {
+        guard let str = UserDefaults.standard.string(forKey: Self.savedPeripheralKey) else { return nil }
+        return UUID(uuidString: str)
+    }
+
     override init() {
         super.init()
         centralManager = CBCentralManager(delegate: self, queue: .main)
@@ -180,17 +191,29 @@ extension BLEManager: CBCentralManagerDelegate {
         log("BLE state → \(central.state.rawValue)")
         switch central.state {
         case .poweredOn:
-            // 이미 연결된 Kronaby가 있으면 복원
-            let connected = central.retrieveConnectedPeripherals(withServices: [BLEConstants.animaServiceUUID])
-            if let existing = connected.first {
-                log("기존 연결 복원: \(existing.name ?? "?")")
-                self.peripheral = existing
-                existing.delegate = self
-                connectionState = .connecting
-                central.connect(existing, options: nil)
-            } else if pendingScan {
-                startScan()
+            // 저장된 페리퍼럴 UUID로 복원 시도
+            if let savedID = loadSavedPeripheralID() {
+                let peripherals = central.retrievePeripherals(withIdentifiers: [savedID])
+                if let existing = peripherals.first {
+                    if existing.state == .connected {
+                        // 이미 연결됨 — 서비스 재검색
+                        log("기존 연결 복원: \(existing.name ?? "?")")
+                        self.peripheral = existing
+                        existing.delegate = self
+                        connectionState = .connecting
+                        existing.discoverServices(nil)
+                    } else {
+                        // 알려진 기기지만 연결 안 됨 — 재연결
+                        log("저장된 기기 재연결: \(existing.name ?? "?")")
+                        self.peripheral = existing
+                        existing.delegate = self
+                        connectionState = .connecting
+                        central.connect(existing, options: nil)
+                    }
+                    return
+                }
             }
+            if pendingScan { startScan() }
         case .poweredOff:
             connectionState = .bluetoothOff
         default:
@@ -209,6 +232,7 @@ extension BLEManager: CBCentralManagerDelegate {
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         log("BLE 연결됨 — 서비스 검색 시작")
+        savePeripheralID(peripheral.identifier)
         peripheral.discoverServices(nil)
     }
 
