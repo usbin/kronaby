@@ -99,12 +99,12 @@ struct ConnectionView: View {
             .padding()
             .navigationTitle("Kronaby")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItemGroup(placement: .topBarLeading) {
                     Button { showLog.toggle() } label: {
                         Image(systemName: showLog ? "terminal.fill" : "terminal")
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
                     Button { showHelp = true } label: {
                         Image(systemName: "questionmark.circle")
                     }
