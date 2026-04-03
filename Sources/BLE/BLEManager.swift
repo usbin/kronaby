@@ -221,7 +221,15 @@ extension BLEManager: CBCentralManagerDelegate {
                     existing.discoverServices(nil)
                     return
                 }
-                // 연결 안 되어 있으면 수동 스캔 대기 (자동 재연결 안 함)
+                // 연결 안 되어 있지만 저장된 commandMap이 있으면 자동 재연결
+                if loadSavedCommandMap() != nil {
+                    log("저장된 기기 재연결 시도: \(existing.name ?? "?")")
+                    self.peripheral = existing
+                    existing.delegate = self
+                    connectionState = .connecting
+                    central.connect(existing, options: nil)
+                    return
+                }
                 log("저장된 기기 미연결 — 스캔 필요")
             }
             if pendingScan { startScan() }
