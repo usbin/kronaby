@@ -12,6 +12,8 @@
     <string>$(CURRENT_PROJECT_VERSION)</string>
     <key>CFBundleShortVersionString</key>
     <string>$(MARKETING_VERSION)</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>LSRequiresIPhoneOS</key>
