@@ -120,6 +120,8 @@ final class BLEManager: NSObject, ObservableObject {
         sendNextHandshakeStep()
     }
 
+    private var waitingForRead = false
+
     private func sendNextHandshakeStep() {
         guard handshakeStep <= 2 else {
             log("핸드셰이크 3단계 전송 완료")
@@ -130,13 +132,16 @@ final class BLEManager: NSObject, ObservableObject {
             return
         }
         let step = handshakeStep
-        let data = protocol_.encode(commandId: 0, value: step)
-        peripheral?.writeValue(data, for: char, type: .withResponse)
+        // 올바른 인코딩: [0, step] (Array), withoutResponse
+        let data = protocol_.encodeArray([0, step])
+        waitingForRead = false
+        peripheral?.writeValue(data, for: char, type: .withoutResponse)
         log("map_cmd(\(step)) → \(data.map { String(format: "%02X", $0) }.joined())")
 
-        // Write 후 command 특성에서 응답을 read
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+        // write 후 read로 응답 받기
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
             guard let self, let p = self.peripheral, let c = self.commandChar else { return }
+            self.waitingForRead = true
             p.readValue(for: c)
             self.log("map_cmd(\(step)) read 요청")
         }

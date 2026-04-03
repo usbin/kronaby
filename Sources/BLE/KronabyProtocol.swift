@@ -37,6 +37,11 @@ final class KronabyProtocol {
         return MsgPackEncoder.encode(map)
     }
 
+    func encodeArray(_ values: [Any]) -> Data {
+        let arr = MsgPackValue.array(values.map { anyToMsgPack($0) })
+        return MsgPackEncoder.encode(arr)
+    }
+
     func decode(data: Data) -> Any? {
         guard let value = MsgPackDecoder.decode(data) else { return nil }
         return msgPackToAny(value)
