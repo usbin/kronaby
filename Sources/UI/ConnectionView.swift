@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ConnectionView: View {
     @EnvironmentObject var ble: BLEManager
+    @State private var showHelp = false
 
     var body: some View {
         NavigationStack {
@@ -64,12 +65,32 @@ struct ConnectionView: View {
                     Button("연결 해제") { ble.disconnect() }
                         .buttonStyle(.bordered)
                         .tint(.red)
-                default:
-                    ProgressView()
+                case .bluetoothOff:
+                    Text("블루투스를 켜주세요")
+                        .foregroundStyle(.red)
+                case .connecting, .handshaking:
+                    VStack(spacing: 8) {
+                        ProgressView()
+                        Button("취소") { ble.disconnect() }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             .padding()
             .navigationTitle("Kronaby")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showHelp = true } label: {
+                        Image(systemName: "questionmark.circle")
+                    }
+                }
+            }
+            .alert("시계 페어링 초기화", isPresented: $showHelp) {
+                Button("확인", role: .cancel) {}
+            } message: {
+                Text("시계가 검색되지 않으면 기존 페어링을 먼저 삭제해야 합니다.\n\n상단 + 하단 푸셔를 동시에 길게 누르면 시계가 3회 진동하며 페어링이 초기화됩니다.\n\n초기화 후 다시 스캔하세요.")
+            }
         }
     }
 
@@ -78,6 +99,7 @@ struct ConnectionView: View {
         case .connected: return .green
         case .scanning, .connecting, .handshaking: return .orange
         case .disconnected: return .red
+        case .bluetoothOff: return .gray
         }
     }
 }

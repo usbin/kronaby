@@ -7,6 +7,7 @@ enum ConnectionState: String {
     case connecting = "연결 중..."
     case handshaking = "핸드셰이크 중..."
     case connected = "연결됨"
+    case bluetoothOff = "블루투스 꺼짐"
 }
 
 final class BLEManager: NSObject, ObservableObject {
@@ -21,6 +22,7 @@ final class BLEManager: NSObject, ObservableObject {
     private var notifyChar: CBCharacteristic?
 
     private let protocol_ = KronabyProtocol()
+    private var pendingScan = false
 
     override init() {
         super.init()
@@ -30,13 +32,31 @@ final class BLEManager: NSObject, ObservableObject {
     // MARK: - Public API
 
     func startScan() {
-        guard centralManager.state == .poweredOn else { return }
-        discoveredPeripherals.removeAll()
+        guard centralManager.state == .poweredOn else {
+            // BLE not ready yet — queue scan for when it becomes ready
+            pendingScan = true
+            if centralManager.state == .poweredOff {
+                connectionState = .bluetoothOff
+            }
+            return
+        }
+        pendingScan = false
+        discoveredPeripherals = []
         connectionState = .scanning
+
+        // Scan with nil services to find all BLE devices first,
+        // then filter by name/advertisement data.
+        // Some Kronaby models may not advertise F431 in the ad packet.
         centralManager.scanForPeripherals(
-            withServices: [BLEConstants.kronabyAdvertisementUUID],
+            withServices: nil,
             options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
         )
+
+        // Auto-stop after 30 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
+            guard let self, self.connectionState == .scanning else { return }
+            self.stopScan()
+        }
     }
 
     func stopScan() {
@@ -52,6 +72,12 @@ final class BLEManager: NSObject, ObservableObject {
         peripheral.delegate = self
         connectionState = .connecting
         centralManager.connect(peripheral, options: nil)
+
+        // Timeout: if still connecting after 15 seconds, cancel
+        DispatchQueue.main.asyncAfter(deadline: .now() + 15) { [weak self] in
+            guard let self, self.connectionState == .connecting else { return }
+            self.disconnect()
+        }
     }
 
     func disconnect() {
@@ -71,7 +97,6 @@ final class BLEManager: NSObject, ObservableObject {
 
     private func performHandshake() {
         connectionState = .handshaking
-        // Send map_cmd sequence: {0:0}, {0:1}, {0:2}
         guard let char = commandChar else { return }
 
         for i in 0...2 {
@@ -81,10 +106,8 @@ final class BLEManager: NSObject, ObservableObject {
     }
 
     private func completeSetup() {
-        // Send onboarding_done(1)
         sendCommand(name: "onboarding_done", value: 1)
 
-        // Send current datetime
         let now = Date()
         let cal = Calendar.current
         let comps = cal.dateComponents([.year, .month, .day, .hour, .minute, .second, .weekday], from: now)
@@ -111,21 +134,48 @@ final class BLEManager: NSObject, ObservableObject {
 
         connectionState = .connected
     }
+
+    // MARK: - Filtering
+
+    private func isKronabyDevice(_ peripheral: CBPeripheral, advertisementData: [String: Any]) -> Bool {
+        // Check by advertised service UUIDs
+        if let serviceUUIDs = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] {
+            let uuidStrings = serviceUUIDs.map { $0.uuidString.uppercased() }
+            if uuidStrings.contains("F431") || uuidStrings.contains("0000F431-0000-1000-8000-00805F9B34FB") {
+                return true
+            }
+        }
+        // Fallback: check device name
+        if let name = peripheral.name?.lowercased() {
+            if name.contains("kronaby") || name.contains("anima") {
+                return true
+            }
+        }
+        return false
+    }
 }
 
 // MARK: - CBCentralManagerDelegate
 
 extension BLEManager: CBCentralManagerDelegate {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        if central.state != .poweredOn {
+        switch central.state {
+        case .poweredOn:
+            if pendingScan {
+                startScan()
+            }
+        case .poweredOff:
+            connectionState = .bluetoothOff
+        default:
             connectionState = .disconnected
         }
     }
 
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
                         advertisementData: [String: Any], rssi RSSI: NSNumber) {
+        guard isKronabyDevice(peripheral, advertisementData: advertisementData) else { return }
         if !discoveredPeripherals.contains(where: { $0.identifier == peripheral.identifier }) {
-            discoveredPeripherals.append(peripheral)
+            discoveredPeripherals = discoveredPeripherals + [peripheral]
         }
     }
 
@@ -170,7 +220,6 @@ extension BLEManager: CBPeripheralDelegate {
             }
         }
 
-        // Start handshake once both characteristics are ready
         if commandChar != nil && notifyChar != nil {
             performHandshake()
         }
@@ -181,17 +230,13 @@ extension BLEManager: CBPeripheralDelegate {
         let decoded = protocol_.decode(data: data)
 
         if connectionState == .handshaking {
-            // Accumulate command map from handshake responses
             if let map = decoded as? [String: Int] {
                 commandMap.merge(map) { _, new in new }
             }
-
-            // After receiving enough map entries, complete setup
             if commandMap.count >= 10 {
                 completeSetup()
             }
         } else if connectionState == .connected {
-            // Handle button events
             if let event = protocol_.parseButtonEvent(decoded, commandMap: commandMap) {
                 lastButtonEvent = event
             }
