@@ -108,6 +108,13 @@ final class BLEManager: NSObject, ObservableObject {
         connectionState = .connecting
         log("연결 시도: \(peripheral.name ?? "unknown") (\(peripheral.identifier))")
         centralManager.connect(peripheral, options: nil)
+
+        // 30초 연결 타임아웃
+        DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
+            guard let self, self.connectionState == .connecting else { return }
+            self.log("연결 타임아웃 — 실패")
+            self.disconnect()
+        }
     }
 
     func disconnect() {
@@ -380,9 +387,14 @@ extension BLEManager: CBPeripheralDelegate {
 
             // command 특성에서 read 응답이 온 경우 → 다음 step 진행
             if isFromCommandChar {
-                // 이전과 같은 데이터면 아직 갱신 안 됨 — write 재전송 + read 재시도 (무한)
+                // 이전과 같은 데이터면 write 재전송 + read 재시도 (최대 10회)
                 if hex == lastReadHex && handshakeStep > 0 {
                     readRetryCount += 1
+                    if readRetryCount > 10 {
+                        log("핸드셰이크 실패 — step \(handshakeStep) 응답 없음")
+                        disconnect()
+                        return
+                    }
                     log("같은 데이터 — \(readRetryCount)회 재시도")
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
                         guard let self, self.connectionState == .handshaking,
