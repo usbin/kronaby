@@ -211,23 +211,21 @@ extension BLEManager: CBCentralManagerDelegate {
         switch central.state {
         case .poweredOn:
             // 저장된 페리퍼럴이 이미 연결 상태인 경우만 복원
-            if let savedID = loadSavedPeripheralID() {
-                let peripherals = central.retrievePeripherals(withIdentifiers: [savedID])
-                if let existing = peripherals.first, existing.state == .connected {
-                    log("기존 연결 복원: \(existing.name ?? "?")")
-                    self.peripheral = existing
-                    existing.delegate = self
+            if let savedID = loadSavedPeripheralID(),
+               let device = central.retrievePeripherals(withIdentifiers: [savedID]).first {
+                if device.state == .connected {
+                    log("기존 연결 복원: \(device.name ?? "?")")
+                    self.peripheral = device
+                    device.delegate = self
                     connectionState = .connecting
-                    existing.discoverServices(nil)
+                    device.discoverServices(nil)
                     return
-                }
-                // 연결 안 되어 있지만 저장된 commandMap이 있으면 자동 재연결
-                if loadSavedCommandMap() != nil {
-                    log("저장된 기기 재연결 시도: \(existing.name ?? "?")")
-                    self.peripheral = existing
-                    existing.delegate = self
+                } else if loadSavedCommandMap() != nil {
+                    log("저장된 기기 재연결 시도: \(device.name ?? "?")")
+                    self.peripheral = device
+                    device.delegate = self
                     connectionState = .connecting
-                    central.connect(existing, options: nil)
+                    central.connect(device, options: nil)
                     return
                 }
                 log("저장된 기기 미연결 — 스캔 필요")

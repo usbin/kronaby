@@ -87,7 +87,6 @@ struct TimeSettingView: View {
 
     private func syncTime() {
         let now = Date()
-        let cal = Calendar.current
         var tzCal = Calendar.current
         tzCal.timeZone = selectedTimeZone
 
