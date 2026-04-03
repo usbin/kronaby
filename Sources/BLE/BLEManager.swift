@@ -318,6 +318,15 @@ extension BLEManager: CBPeripheralDelegate {
             log("쓰기 에러 [\(characteristic.uuid)]: \(error.localizedDescription)")
         } else {
             log("쓰기 성공 [\(characteristic.uuid)]")
+            // 핸드셰이크 중 write 성공 → read로 응답 받기
+            if pendingHandshakeRead && characteristic.uuid == BLEConstants.commandCharUUID {
+                pendingHandshakeRead = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                    guard let self, let p = self.peripheral, let c = self.commandChar else { return }
+                    p.readValue(for: c)
+                    self.log("map_cmd(\(self.handshakeStep)) read 요청")
+                }
+            }
         }
     }
 
@@ -372,7 +381,7 @@ extension BLEManager: CBPeripheralDelegate {
 
             // command 특성에서 read 응답이 온 경우 → 다음 step 진행
             if isFromCommandChar {
-                // 이전과 같은 데이터면 write 재전송 + read 재시도 (최대 10회)
+                // 이전과 같은 데이터면 write 재전송 (최대 10회)
                 if hex == lastReadHex && handshakeStep > 0 {
                     readRetryCount += 1
                     if readRetryCount > 10 {
@@ -382,14 +391,8 @@ extension BLEManager: CBPeripheralDelegate {
                     }
                     log("같은 데이터 — \(readRetryCount)회 재시도")
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
-                        guard let self, self.connectionState == .handshaking,
-                              let char = self.commandChar, let p = self.peripheral else { return }
-                        let data = self.protocol_.encodeArray([0, self.handshakeStep])
-                        p.writeValue(data, for: char, type: .withoutResponse)
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-                            guard let self, let p = self.peripheral, let c = self.commandChar else { return }
-                            p.readValue(for: c)
-                        }
+                        guard let self, self.connectionState == .handshaking else { return }
+                        self.sendNextHandshakeStep()
                     }
                     return
                 }
