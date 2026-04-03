@@ -67,11 +67,12 @@ final class BLEManager: NSObject, ObservableObject {
         discoveredPeripherals = []
         connectionState = .scanning
 
+        // F431 서비스 UUID로 필터 — 페어링 모드 시계만 검색
         centralManager.scanForPeripherals(
-            withServices: nil,
+            withServices: [BLEConstants.kronabyAdvertisementUUID],
             options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
         )
-        log("스캔 시작됨 (all devices)")
+        log("스캔 시작됨 (F431 필터)")
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
             guard let self, self.connectionState == .scanning else { return }
@@ -108,6 +109,12 @@ final class BLEManager: NSObject, ObservableObject {
             centralManager.cancelPeripheralConnection(peripheral)
             log("연결 해제 요청")
         }
+    }
+
+    func forgetDevice() {
+        disconnect()
+        UserDefaults.standard.removeObject(forKey: Self.savedPeripheralKey)
+        log("저장된 기기 정보 삭제")
     }
 
     func sendCommand(name: String, value: Any) {
@@ -160,8 +167,17 @@ final class BLEManager: NSObject, ObservableObject {
 
     private func completeSetup() {
         log("핸드셰이크 완료 — commandMap \(commandMap.count)개")
+
+        // 검증: commandMap에 필수 키가 있어야 함
+        guard commandMap.count >= 10,
+              commandMap["onboarding_done"] != nil,
+              commandMap["datetime"] != nil else {
+            log("핸드셰이크 실패 — commandMap 불완전 (\(commandMap.count)개)")
+            disconnect()
+            return
+        }
+
         sendCommand(name: "onboarding_done", value: 1)
-        // datetime은 유저가 캘리브레이션 후 시각 설정에서 전송
         connectionState = .connected
         log("연결됨! 영점 조정 → 시각 설정 순서로 진행하세요.")
     }
@@ -223,7 +239,7 @@ extension BLEManager: CBCentralManagerDelegate {
 
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
                         advertisementData: [String: Any], rssi RSSI: NSNumber) {
-        guard isKronabyDevice(peripheral, advertisementData: advertisementData) else { return }
+        // F431 서비스 필터로 이미 페어링 모드 시계만 들어옴
         log("발견: \(peripheral.name ?? "?") RSSI:\(RSSI)")
         if !discoveredPeripherals.contains(where: { $0.identifier == peripheral.identifier }) {
             discoveredPeripherals = discoveredPeripherals + [peripheral]

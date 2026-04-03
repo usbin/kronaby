@@ -108,9 +108,13 @@ struct ConnectionView: View {
                     Button("스캔 중지") { ble.stopScan() }
                         .buttonStyle(.bordered)
                 case .connected:
-                    Button("연결 해제") { ble.disconnect() }
-                        .buttonStyle(.bordered)
-                        .tint(.red)
+                    HStack {
+                        Button("연결 해제") { ble.disconnect() }
+                            .buttonStyle(.bordered)
+                        Button("기기 삭제") { ble.forgetDevice() }
+                            .buttonStyle(.bordered)
+                            .tint(.red)
+                    }
                 case .bluetoothOff:
                     Text("블루투스를 켜주세요")
                         .foregroundStyle(.red)
