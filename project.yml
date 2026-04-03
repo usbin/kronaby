@@ -1,0 +1,37 @@
+name: Kronaby
+options:
+  bundleIdPrefix: com.usbin
+  deploymentTarget:
+    iOS: "16.0"
+  xcodeVersion: "16.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: 1
+
+packages:
+  MessagePack:
+    url: https://github.com/fuzi/MessagePack.swift.git
+    from: "4.0.0"
+
+targets:
+  Kronaby:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+    settings:
+      base:
+        INFOPLIST_FILE: Sources/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.usbin.kronaby
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGNING_ALLOWED: "NO"
+    dependencies:
+      - package: MessagePack
+    entitlements:
+      path: Sources/Kronaby.entitlements
+      properties:
+        com.apple.developer.networking.wifi-info: true
