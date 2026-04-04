@@ -3,25 +3,28 @@ import UIKit
 
 final class FindMyPhone {
     private var player: AVAudioPlayer?
+    private var timer: Timer?
 
     func play() {
-        // Use system sound for maximum volume even in silent mode
-        AudioServicesPlayAlertSound(SystemSoundID(1005))
-
-        // Also play with AVAudioPlayer for longer duration
-        guard let url = Bundle.main.url(forResource: "findme", withExtension: "caf")
-                ?? createBeepURL() else { return }
-
         do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, options: .duckOthers)
+            // .playback 카테고리 = 무음모드 무시, 최대 볼륨
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
             try AVAudioSession.sharedInstance().setActive(true)
-            player = try AVAudioPlayer(contentsOf: url)
-            player?.numberOfLoops = 5
+
+            // iOS 시스템 사운드 파일 사용 (번들 불필요)
+            let soundURL = URL(fileURLWithPath: "/System/Library/Audio/UISounds/alarm.caf")
+            player = try AVAudioPlayer(contentsOf: soundURL)
+            player?.numberOfLoops = -1  // 무한 반복
             player?.volume = 1.0
             player?.play()
+
+            // 30초 후 자동 정지
+            timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: false) { [weak self] _ in
+                self?.stop()
+            }
         } catch {
-            // Fallback: system alert sound
-            for i in 0..<5 {
+            // Fallback: 시스템 알림음 반복
+            for i in 0..<10 {
                 DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.8) {
                     AudioServicesPlayAlertSound(SystemSoundID(1005))
                 }
@@ -30,13 +33,10 @@ final class FindMyPhone {
     }
 
     func stop() {
+        timer?.invalidate()
+        timer = nil
         player?.stop()
         player = nil
         try? AVAudioSession.sharedInstance().setActive(false)
-    }
-
-    private func createBeepURL() -> URL? {
-        // No bundled sound file — just use system sounds
-        nil
     }
 }
