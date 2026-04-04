@@ -179,25 +179,36 @@ final class NotificationMappingManager: ObservableObject {
     // MARK: - Apply to Watch
 
     func applyToWatch(ble: BLEManager) {
-        // 먼저 기존 필터 전체 삭제 (0~34)
-        for i in 0...34 {
-            ble.sendCommand(name: "ancs_filter", value: [i])
-        }
-        ble.log("기존 필터 전체 삭제 (0~34)")
+        let activeFilters = filters.filter { $0.enabled }
 
-        // 활성 필터 전송
-        var filterIndex = 0
-        for filter in filters where filter.enabled {
-            let idx = filter.position  // 위치값을 인덱스로 사용
-            ble.sendCommand(name: "ancs_filter", value: [
-                idx,
-                filter.filterType.bitmask,
-                filter.filterType.attributeType,
-                filter.filterType.searchString,
-                filter.vibration.rawValue
-            ] as [Any])
-            ble.log("ancs_filter[\(idx)]: \(filter.displayName) → \(filter.position)시, \(filter.vibration.displayName)")
-            filterIndex += 1
+        // 사용할 인덱스들만 삭제 + 활성 필터 전송 (딜레이 포함)
+        var delay: Double = 0
+
+        // 1. 기존 필터 삭제 (0~12만, 딜레이 간격)
+        for i in 0...12 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                ble.sendCommand(name: "ancs_filter", value: [i])
+            }
+            delay += 0.1
+        }
+        ble.log("기존 필터 삭제 예약 (0~12)")
+
+        // 2. 활성 필터 전송 (삭제 완료 후)
+        delay += 0.5
+        for filter in activeFilters {
+            let idx = filter.position
+            let bitmask = filter.filterType.bitmask
+            let attr = filter.filterType.attributeType
+            let search = filter.filterType.searchString
+            let vib = filter.vibration.rawValue
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                ble.sendCommand(name: "ancs_filter", value: [
+                    idx, bitmask, attr, search, vib
+                ] as [Any])
+                ble.log("ancs_filter[\(idx)]: \(filter.displayName) → \(idx)시, vib=\(vib)")
+            }
+            delay += 0.3
         }
     }
 
