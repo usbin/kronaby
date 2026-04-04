@@ -1,36 +1,24 @@
 import SwiftUI
 import HealthKit
 
-// APK 디컴파일 기준 크라운 deviceComplicationMode 값
-// set_complication_mode: [slotId=4(crown), mode]
+// 크라운 complication 모드 (실기기 검증 완료)
+// complications([5, mode, 18]) 형식으로 전송
 enum CrownMode: Int, CaseIterable, Identifiable {
-    case date = 0
-    case time = 1
-    case remote = 3
-    case steps = 4
-    case stoptime = 6
-    case dice = 9
-    case timer = 14
-    case none = 15
-    case stopwatch = 23
-    case dayOfWeek = 28
-    case battery = 46
+    case date = 0         // 날짜 — 검증 완료
+    case secondTime = 1   // 세계시간 — 검증 완료
+    case steps = 4        // 걸음수 — 검증 완료
+    case stopwatch = 14   // 스톱워치 — 검증 완료
+    case none = 15        // 없음
 
     var id: Int { rawValue }
 
     var displayName: String {
         switch self {
         case .date: return "날짜 확인"
-        case .time: return "시간"
-        case .remote: return "리모트"
-        case .steps: return "걸음 수"
-        case .stoptime: return "스톱타임"
-        case .dice: return "주사위"
-        case .timer: return "타이머"
-        case .none: return "없음"
+        case .secondTime: return "세계시간"
+        case .steps: return "걸음수"
         case .stopwatch: return "스톱워치"
-        case .dayOfWeek: return "요일"
-        case .battery: return "배터리"
+        case .none: return "없음"
         }
     }
 }
@@ -137,71 +125,10 @@ struct ComplicationsView: View {
                     }
                 }
 
-                Section("크라운 디버그") {
-                    Text("공식 앱으로 크라운 설정 → 공식 앱 종료 → 우리 앱 연결 → 아래 버튼 테스트")
+                Section {
+                    Text("세계시간은 시계 설정에서 UTC 오프셋을 지정하세요.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-
-                    Button("complications 읽기 (배치 0~2)") {
-                        // map_cmd처럼 배치로 읽기
-                        if let cmdId = ble.commandMap["complications"] {
-                            for batch in 0...2 {
-                                let delay = Double(batch) * 2.0
-                                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                                    let data = KronabyProtocol().encodeArray([cmdId, batch])
-                                    if let c = ble.commandChar {
-                                        ble.peripheral?.writeValue(data, for: c, type: .withResponse)
-                                        ble.log("complications Array[\(batch)]: \(data.map { String(format: "%02X", $0) }.joined())")
-                                    }
-                                }
-                                DispatchQueue.main.asyncAfter(deadline: .now() + delay + 1.0) {
-                                    if let p = ble.peripheral, let c = ble.commandChar {
-                                        p.readValue(for: c)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    Button("set_complication_mode 읽기") {
-                        if let cmdId = ble.commandMap["set_complication_mode"] {
-                            let data = KronabyProtocol().encodeArray([cmdId, 0])
-                            if let c = ble.commandChar {
-                                ble.peripheral?.writeValue(data, for: c, type: .withResponse)
-                                ble.log("set_complication_mode read: \(data.map { String(format: "%02X", $0) }.joined())")
-                            }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                                if let p = ble.peripheral, let c = ble.commandChar {
-                                    p.readValue(for: c)
-                                }
-                            }
-                        }
-                    }
-                    Button("settings 읽기") {
-                        if let cmdId = ble.commandMap["settings"] {
-                            let data = KronabyProtocol().encodeArray([cmdId, 0])
-                            if let c = ble.commandChar {
-                                ble.peripheral?.writeValue(data, for: c, type: .withResponse)
-                                ble.log("settings read: \(data.map { String(format: "%02X", $0) }.joined())")
-                            }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                                if let p = ble.peripheral, let c = ble.commandChar {
-                                    p.readValue(for: c)
-                                }
-                            }
-                        }
-                    }
-                    Button("크라운=날짜 [5,0,18]") {
-                        ble.sendCommand(name: "complications", value: [5, 0, 18])
-                        ble.log("complications([5, 0, 18]) 날짜")
-                    }
-                    Button("크라운=걸음수 [5,4,18]") {
-                        ble.sendCommand(name: "complications", value: [5, 4, 18])
-                        ble.log("complications([5, 4, 18]) 걸음수")
-                    }
-                    Button("크라운=없음 [5,15,18]") {
-                        ble.sendCommand(name: "complications", value: [5, 15, 18])
-                        ble.log("complications([5, 15, 18]) 없음(Empty=15)")
-                    }
                 }
             }
             .navigationTitle("크라운 설정")
@@ -226,25 +153,12 @@ struct ComplicationsView: View {
     private func apply() {
         let mode = crownMode.rawValue
 
-        // 1. config_base — 펌웨어에 기본 설정 전달 (complication 모드 전환 전제조건)
-        ble.sendCommand(name: "config_base", value: [1, 0])
-        ble.log("config_base([1, 0]) 전송")
-
-        // 2. 약간의 딜레이 후 complication 명령 전송
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [self] in
-            // complications 배치 (6슬롯 전체)
-            ble.sendCommand(name: "complications", value: [mode, mode, mode, mode, mode, mode])
-
-            // set_complication_mode 개별 슬롯
-            for slot in [3, 4, 7, 8] {
-                ble.sendCommand(name: "set_complication_mode", value: [slot, mode])
-            }
-
-            UserDefaults.standard.set(mode, forKey: Self.savedKey)
-            saved = true
-            ble.log("크라운 설정: \(crownMode.displayName) (mode=\(mode))")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { saved = false }
-        }
+        // 검증된 형식: complications([5, mode, 18])
+        ble.sendCommand(name: "complications", value: [5, mode, 18])
+        UserDefaults.standard.set(mode, forKey: Self.savedKey)
+        saved = true
+        ble.log("크라운 설정: \(crownMode.displayName) → complications([5, \(mode), 18])")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { saved = false }
     }
 
     // MARK: - Step Goal
