@@ -502,10 +502,18 @@ extension BLEManager: CBPeripheralDelegate {
                 batteryInfo = [percent, mv]
                 log("배터리: \(mv)mV → \(percent)%")
             } else if let dict = decoded as? [Int: Any],
-                      let stepsId = commandMap["steps_now"],
-                      let steps = dict[stepsId] as? Int {
-                stepsInfo = [steps, 0]
-                log("걸음수: \(steps)")
+                      let stepsId = commandMap["steps_now"] {
+                // steps_now: 단일 int 또는 [steps, day] 배열
+                if let arr = dict[stepsId] as? [Any],
+                   arr.count >= 2,
+                   let steps = arr[0] as? Int,
+                   let day = arr[1] as? Int {
+                    stepsInfo = [steps, day]
+                    log("걸음수: \(steps)보 (day \(day))")
+                } else if let steps = dict[stepsId] as? Int {
+                    stepsInfo = [steps, 0]
+                    log("걸음수: \(steps)보")
+                }
             } else if let dict = decoded as? [Int: Any],
                       let stepsId = commandMap["steps_day"],
                       let arr = dict[stepsId] as? [Any],
@@ -513,7 +521,7 @@ extension BLEManager: CBPeripheralDelegate {
                       let steps = arr[0] as? Int,
                       let day = arr[1] as? Int {
                 stepsInfo = [steps, day]
-                log("걸음수(일별): \(steps) (day \(day))")
+                log("걸음수(일별): \(steps)보 (day \(day))")
             } else {
                 log("수신(연결): \(String(describing: decoded))")
             }
