@@ -3,9 +3,20 @@ name: Build iOS
 on:
   push:
     branches: [main]
+    paths:
+      - 'Sources/**'
+      - 'project.yml'
+      - '.github/workflows/build.yml'
   pull_request:
     branches: [main]
+    paths:
+      - 'Sources/**'
+      - 'project.yml'
   workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
