@@ -25,6 +25,10 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
+      - name: Install iOS Simulator Runtime
+        run: |
+          xcodebuild -downloadPlatform iOS || true
+
       - name: Build for device (unsigned)
         run: |
           xcodebuild build \
