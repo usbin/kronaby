@@ -32,6 +32,7 @@ final class LocationRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
     private static let storageKey = "saved_locations"
     private var lastRecordTime: Date = .distantPast
     private var isRecording = false
+    var onRecorded: (() -> Void)?
 
     override init() {
         super.init()
@@ -87,6 +88,7 @@ final class LocationRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
                 self.savedLocations.insert(entry, at: 0)
                 self.saveToDisk()
                 self.sendNotification(title: "위치 저장됨", body: entry.displayName)
+                self.onRecorded?()
             }
         }
     }

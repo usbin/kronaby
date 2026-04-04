@@ -14,6 +14,9 @@ struct KronabyApp: App {
                 .environmentObject(locationRecorder)
                 .onAppear {
                     actionManager.locationRecorder = locationRecorder
+                    locationRecorder.onRecorded = { [weak bleManager] in
+                        bleManager?.sendCommand(name: "vibrator_start", value: [150])
+                    }
                 }
                 .onReceive(bleManager.$lastButtonEvent) { event in
                     guard let event = event else { return }
