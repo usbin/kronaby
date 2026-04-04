@@ -53,6 +53,27 @@ struct AlarmView: View {
                             .frame(maxWidth: .infinity)
                     }
                 }
+                Section("디버그") {
+                    Button("alarm 현재값 읽기") {
+                        if let cmdId = ble.commandMap["alarm"] {
+                            for batch in 0...2 {
+                                let delay = Double(batch) * 2.0
+                                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                                    let data = KronabyProtocol().encodeArray([cmdId, batch])
+                                    if let c = ble.commandChar {
+                                        ble.peripheral?.writeValue(data, for: c, type: .withResponse)
+                                        ble.log("alarm read[\(batch)]: \(data.map { String(format: "%02X", $0) }.joined())")
+                                    }
+                                }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + delay + 1.0) {
+                                    if let p = ble.peripheral, let c = ble.commandChar {
+                                        p.readValue(for: c)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
             .navigationTitle("무음 알람")
             .navigationBarTitleDisplayMode(.inline)
