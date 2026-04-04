@@ -226,6 +226,10 @@ final class BLEManager: NSObject, ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
             guard let self else { return }
             self.sendCommand(name: "onboarding_done", value: 1)
+            // 만보기 활성화
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                self?.sendCommand(name: "config_base", value: [1, 1])
+            }
             self.log("연결됨! 영점 조정 → 시각 설정 순서로 진행하세요.")
         }
     }
@@ -378,6 +382,10 @@ extension BLEManager: CBPeripheralDelegate {
                 commandMap = savedMap
                 log("저장된 commandMap 복원 (\(savedMap.count)개)")
                 sendCommand(name: "onboarding_done", value: 1)
+                // 만보기 활성화
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                    self?.sendCommand(name: "config_base", value: [1, 1])
+                }
                 connectionState = .connected
                 log("재연결 완료!")
             } else {
