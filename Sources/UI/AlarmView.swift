@@ -40,6 +40,13 @@ struct AlarmView: View {
                     }
                     .frame(maxWidth: .infinity)
 
+                    Button("알람 전체 삭제 (시계)") {
+                        ble.sendCommand(name: "alarm", value: [] as [Any])
+                        ble.log("alarm 전체 삭제: 빈 배열 전송")
+                    }
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity)
+
                     if applied {
                         Text("적용 완료!")
                             .foregroundStyle(.green)
