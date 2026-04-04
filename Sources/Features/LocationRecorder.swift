@@ -18,6 +18,10 @@ struct SavedLocation: Codable, Identifiable {
         f.dateFormat = "yyyy-MM-dd HH:mm:ss"
         return f.string(from: timestamp)
     }
+
+    var displayName: String {
+        placeName.isEmpty ? coordinateString : placeName
+    }
 }
 
 final class LocationRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
@@ -26,12 +30,14 @@ final class LocationRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
     private let manager = CLLocationManager()
     private let geocoder = CLGeocoder()
     private static let storageKey = "saved_locations"
+    private var lastRecordTime: Date = .distantPast
+    private var isRecording = false
 
     override init() {
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
-        loadLocations()
+        loadFromDisk()
         requestNotificationPermission()
     }
 
@@ -39,13 +45,12 @@ final class LocationRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
         manager.requestWhenInUseAuthorization()
     }
 
-    private var lastRecordTime: Date = .distantPast
-
     func recordCurrentLocation() {
-        // 3초 이내 중복 호출 방지
+        // 5초 이내 중복 호출 차단
         let now = Date()
-        guard now.timeIntervalSince(lastRecordTime) > 3.0 else { return }
+        guard now.timeIntervalSince(lastRecordTime) > 5.0, !isRecording else { return }
         lastRecordTime = now
+        isRecording = true
         requestPermission()
         manager.requestLocation()
     }
@@ -53,26 +58,12 @@ final class LocationRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
     // MARK: - CLLocationManagerDelegate
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let loc = locations.last else { return }
-
-        // 같은 좌표 중복 저장 방지 (1초 이내)
-        if let last = savedLocations.first,
-           abs(last.timestamp.timeIntervalSinceNow) < 3.0 {
-            return
-        }
+        guard isRecording, let loc = locations.last else { return }
+        isRecording = false
 
         let entryId = UUID().uuidString
-        let entry = SavedLocation(
-            id: entryId,
-            latitude: loc.coordinate.latitude,
-            longitude: loc.coordinate.longitude,
-            timestamp: Date(),
-            placeName: ""
-        )
-        savedLocations.insert(entry, at: 0)
-        saveLocations()
 
-        // Reverse geocode → 완료 후 알림
+        // 역지오코딩 후 한 번에 저장
         geocoder.reverseGeocodeLocation(loc) { [weak self] placemarks, _ in
             guard let self else { return }
             let name: String
@@ -83,34 +74,38 @@ final class LocationRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
             } else {
                 name = ""
             }
-            let finalName = name.isEmpty ? entry.coordinateString : name
-            if let idx = self.savedLocations.firstIndex(where: { $0.id == entryId }) {
-                self.savedLocations[idx].placeName = finalName
-                self.saveLocations()
+
+            let entry = SavedLocation(
+                id: entryId,
+                latitude: loc.coordinate.latitude,
+                longitude: loc.coordinate.longitude,
+                timestamp: Date(),
+                placeName: name
+            )
+
+            DispatchQueue.main.async {
+                self.savedLocations.insert(entry, at: 0)
+                self.saveToDisk()
+                self.sendNotification(title: "위치 저장됨", body: entry.displayName)
             }
-            self.sendNotification(title: "위치 저장됨", body: finalName)
         }
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        isRecording = false
         sendNotification(title: "위치 기록 실패", body: error.localizedDescription)
     }
 
     // MARK: - Delete
 
-    func delete(at offsets: IndexSet) {
-        savedLocations.remove(atOffsets: offsets)
-        saveLocations()
-    }
-
     func deleteByIDs(_ ids: Set<String>) {
         savedLocations.removeAll { ids.contains($0.id) }
-        saveLocations()
+        saveToDisk()
     }
 
     func deleteAll() {
         savedLocations.removeAll()
-        saveLocations()
+        saveToDisk()
     }
 
     // MARK: - Map
@@ -119,28 +114,27 @@ final class LocationRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
         let lat = location.latitude
         let lon = location.longitude
 
-        // Try KakaoMap first
         if let kakao = URL(string: "kakaomap://look?p=\(lat),\(lon)"),
            UIApplication.shared.canOpenURL(kakao) {
             UIApplication.shared.open(kakao)
             return
         }
 
-        // Fallback: Apple Maps
-        if let apple = URL(string: "maps://?ll=\(lat),\(lon)&q=\(location.placeName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "Pin")") {
+        let q = location.displayName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "Pin"
+        if let apple = URL(string: "maps://?ll=\(lat),\(lon)&q=\(q)") {
             UIApplication.shared.open(apple)
         }
     }
 
     // MARK: - Persistence
 
-    private func saveLocations() {
+    private func saveToDisk() {
         if let data = try? JSONEncoder().encode(savedLocations) {
             UserDefaults.standard.set(data, forKey: Self.storageKey)
         }
     }
 
-    private func loadLocations() {
+    private func loadFromDisk() {
         if let data = UserDefaults.standard.data(forKey: Self.storageKey),
            let decoded = try? JSONDecoder().decode([SavedLocation].self, from: data) {
             savedLocations = decoded
@@ -151,10 +145,6 @@ final class LocationRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
 
     private func requestNotificationPermission() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
-    }
-
-    private func sendNotification(entry: SavedLocation) {
-        sendNotification(title: "위치 저장됨", body: "\(entry.placeName)\n\(entry.coordinateString)")
     }
 
     private func sendNotification(title: String, body: String) {
