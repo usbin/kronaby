@@ -170,11 +170,34 @@ struct ComplicationsView: View {
                             }
                         }
                     }
-                    Button("set_complication_mode hex 확인") {
-                        let mode = crownMode.rawValue
-                        for slot in [3, 4, 7, 8] {
-                            let data = KronabyProtocol().encode(commandId: 45, value: [slot, mode])
-                            ble.log("slot \(slot): \(data.map { String(format: "%02X", $0) }.joined())")
+                    Button("ComplicationId로 시도") {
+                        // ComplicationId: 0=Invalid, 3=Date, 5=Steps, 6=Battery
+                        let cid = 3 // Date
+                        // complications 배치 (ComplicationId)
+                        ble.sendCommand(name: "complications", value: [cid])
+                        ble.log("complications([\(cid)]) 전송")
+
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            ble.sendCommand(name: "complications", value: [cid, 0, 0, 0, 0, 0])
+                            ble.log("complications([\(cid),0,0,0,0,0]) 전송")
+                        }
+
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                            // set_complication_mode도 ComplicationId로
+                            for slot in [3, 4, 7, 8] {
+                                ble.sendCommand(name: "set_complication_mode", value: [slot, cid])
+                            }
+                            ble.log("set_complication_mode slots 3,4,7,8 with cid=\(cid)")
+                        }
+                    }
+                    Button("단일 정수로 시도") {
+                        // set_complication_mode이 배열이 아니라 단일 int일 수도
+                        ble.sendCommand(name: "set_complication_mode", value: 0)
+                        ble.log("set_complication_mode(0) 단일 int")
+
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            ble.sendCommand(name: "set_complication_mode", value: 3)
+                            ble.log("set_complication_mode(3) 단일 int")
                         }
                     }
                 }
@@ -231,13 +254,13 @@ struct ComplicationsView: View {
         UserDefaults.standard.set(stepGoal, forKey: Self.stepGoalKey)
         UserDefaults.standard.set(stepLength, forKey: Self.stepLengthKey)
 
-        // step_goal 명령 전송 (걸음수 목표)
-        ble.sendCommand(name: "step_goal", value: stepGoal)
-        ble.log("step_goal(\(stepGoal)) 전송")
+        // steps_target (cmd 58) — 걸음수 목표 전송
+        ble.sendCommand(name: "steps_target", value: stepGoal)
+        ble.log("steps_target(\(stepGoal)) 전송")
 
-        // step_length 명령 전송 (보폭, cm)
-        ble.sendCommand(name: "step_length", value: stepLength)
-        ble.log("step_length(\(stepLength)) 전송")
+        // config_base — [시간해상도(분), 만보기활성화(1)]
+        ble.sendCommand(name: "config_base", value: [1, 1])
+        ble.log("config_base([1, 1]) — 만보기 활성화")
 
         stepGoalSaved = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { stepGoalSaved = false }

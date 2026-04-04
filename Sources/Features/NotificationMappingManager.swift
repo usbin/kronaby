@@ -115,15 +115,29 @@ final class NotificationMappingManager: ObservableObject {
 
     /// 시계에 알림 필터 설정 전송
     func applyToWatch(ble: BLEManager) {
-        // filterednotification 명령: 카테고리별 위치값 배열 전송
-        // 배열 인덱스 = 카테고리 순서, 값 = 시계 숫자 위치 (0=비활성)
+        // ancs_filter (cmd 4) — ANCS 알림 필터 설정
+        // 활성화된 카테고리의 위치값 배열 전송
         let positionArray = NotificationCategory.allCases.map { category -> Int in
             let mapping = getMapping(for: category)
             return mapping.enabled ? mapping.position : 0
         }
 
-        ble.sendCommand(name: "filterednotification", value: positionArray)
-        ble.log("알림 매핑 전송: \(positionArray)")
+        ble.sendCommand(name: "ancs_filter", value: positionArray)
+        ble.log("ancs_filter 전송: \(positionArray)")
+
+        // alert_assign (cmd 3) — 알림 타입별 동작 비트마스크 설정
+        // 활성화된 카테고리에 대해 비트마스크 구성
+        var bitmask0 = 0, bitmask1 = 0, bitmask2 = 0
+        for (index, category) in NotificationCategory.allCases.enumerated() {
+            let mapping = getMapping(for: category)
+            if mapping.enabled && mapping.position > 0 {
+                if index < 8 { bitmask0 |= (1 << index) }
+                else if index < 16 { bitmask1 |= (1 << (index - 8)) }
+                else { bitmask2 |= (1 << (index - 16)) }
+            }
+        }
+        ble.sendCommand(name: "alert_assign", value: [bitmask0, bitmask1, bitmask2])
+        ble.log("alert_assign 전송: [\(bitmask0), \(bitmask1), \(bitmask2)]")
     }
 
     /// 알림 수신 시 시계 바늘 이동 명령 전송
@@ -131,9 +145,9 @@ final class NotificationMappingManager: ObservableObject {
         let position = positionForBundleID(bundleID)
         guard position > 0 else { return }
 
-        // show_notification 명령: 시계 바늘을 해당 숫자로 이동
-        ble.sendCommand(name: "show_notification", value: position)
-        ble.log("알림 표시: \(bundleID) → 위치 \(position)")
+        // alert (cmd 2) — 알림 표시 (시계 바늘이 해당 위치로 이동)
+        ble.sendCommand(name: "alert", value: position)
+        ble.log("alert 전송: \(bundleID) → 위치 \(position)")
     }
 
     // MARK: - Persistence

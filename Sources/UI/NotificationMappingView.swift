@@ -60,7 +60,7 @@ struct NotificationMappingView: View {
                 }
 
                 Section("참고") {
-                    Text("이 기능은 시계 펌웨어의 ANCS(Apple Notification Center Service)를 통해 동작합니다.\n시계가 iPhone과 BLE로 연결된 상태에서 알림을 수신하면 자동으로 바늘이 이동합니다.")
+                    Text("ancs_filter(cmd 4)와 alert_assign(cmd 3)으로 시계에 전송됩니다.\n시계 펌웨어가 ANCS로 iPhone 알림을 감지하면 바늘이 할당된 숫자를 가리킵니다.\n\n정확한 파라미터 형식은 실기기 테스트로 확인이 필요합니다.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
