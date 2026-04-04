@@ -73,6 +73,44 @@ struct AlarmView: View {
                             }
                         }
                     }
+                    Button("alert_assign 읽기") {
+                        if let cmdId = ble.commandMap["alert_assign"] {
+                            for batch in 0...2 {
+                                let delay = Double(batch) * 2.0
+                                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                                    let data = KronabyProtocol().encodeArray([cmdId, batch])
+                                    if let c = ble.commandChar {
+                                        ble.peripheral?.writeValue(data, for: c, type: .withResponse)
+                                        ble.log("alert_assign read[\(batch)]")
+                                    }
+                                }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + delay + 1.0) {
+                                    if let p = ble.peripheral, let c = ble.commandChar {
+                                        p.readValue(for: c)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Button("alert 읽기") {
+                        if let cmdId = ble.commandMap["alert"] {
+                            for batch in 0...2 {
+                                let delay = Double(batch) * 2.0
+                                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                                    let data = KronabyProtocol().encodeArray([cmdId, batch])
+                                    if let c = ble.commandChar {
+                                        ble.peripheral?.writeValue(data, for: c, type: .withResponse)
+                                        ble.log("alert read[\(batch)]")
+                                    }
+                                }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + delay + 1.0) {
+                                    if let p = ble.peripheral, let c = ble.commandChar {
+                                        p.readValue(for: c)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
             .navigationTitle("무음 알람")
@@ -127,10 +165,10 @@ struct AlarmRow: View {
             HStack {
                 DayPicker(days: $alarm.days)
                 Spacer()
-                Picker("진동", selection: $alarm.vibSlot) {
-                    Text("1회").tag(1)
-                    Text("2회").tag(2)
-                    Text("3회").tag(3)
+                Picker("위치", selection: $alarm.vibSlot) {
+                    Text("1시").tag(1)
+                    Text("2시").tag(2)
+                    Text("3시").tag(3)
                 }
                 .pickerStyle(.segmented)
                 .frame(width: 120)
