@@ -158,6 +158,10 @@ final class BLEManager: NSObject, ObservableObject {
         sendCommand(name: "vbat", value: 0)
     }
 
+    func confirmVibration() {
+        sendCommand(name: "vibrator_start", value: [150])
+    }
+
     func requestSteps() {
         sendCommand(name: "steps_now", value: 0)
     }

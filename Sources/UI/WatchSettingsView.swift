@@ -55,7 +55,7 @@ struct WatchSettingsView: View {
                     Picker("하단 버튼", selection: $bottomTrigger) {
                         ForEach(TriggerValue.allCases) { Text($0.displayName).tag($0) }
                     }
-                    applyButton {
+                    applyButton(id: "trigger") {
                         ble.sendCommand(name: "triggers", value: [topTrigger.rawValue, bottomTrigger.rawValue])
                         save(Self.triggerTopKey, topTrigger.rawValue)
                         save(Self.triggerBottomKey, bottomTrigger.rawValue)
@@ -92,7 +92,7 @@ struct WatchSettingsView: View {
                             }.pickerStyle(.menu)
                         }
                     }
-                    applyButton {
+                    applyButton(id: "dnd") {
                         ble.sendCommand(name: "stillness", value: [
                             dndEnabled ? 1 : 0, dndStartHour, dndStartMin, dndEndHour, dndEndMin
                         ])
@@ -121,7 +121,7 @@ struct WatchSettingsView: View {
                             }
                         }.pickerStyle(.menu)
                     }
-                    applyButton {
+                    applyButton(id: "tz2") {
                         ble.sendCommand(name: "timezone2", value: [worldTimeHour, worldTimeMin])
                         save(Self.worldTimeHKey, worldTimeHour)
                         save(Self.worldTimeMKey, worldTimeMin)
@@ -136,7 +136,7 @@ struct WatchSettingsView: View {
                         Text("강하게").tag(1)
                     }
                     .pickerStyle(.segmented)
-                    applyButton {
+                    applyButton(id: "vib") {
                         if vibStrength == 1 {
                             ble.sendCommand(name: "vibrator_config", value: [8, 600])
                         } else {
@@ -163,7 +163,7 @@ struct WatchSettingsView: View {
                             .font(.caption)
                     }
                     Stepper("목표: \(stepGoal.formatted())걸음", value: $stepGoal, in: 1000...50000, step: 1000)
-                    applyButton {
+                    applyButton(id: "steps") {
                         ble.sendCommand(name: "steps_target", value: stepGoal)
                         ble.sendCommand(name: "config_base", value: [1, 1])
                         save(Self.stepGoalKey, stepGoal)
@@ -179,11 +179,29 @@ struct WatchSettingsView: View {
 
     // MARK: - Helpers
 
+    @State private var lastApplied: String?
+
     @ViewBuilder
-    private func applyButton(action: @escaping () -> Void) -> some View {
-        Button("적용") { action() }
+    private func applyButton(id: String = UUID().uuidString, action: @escaping () -> Void) -> some View {
+        HStack {
+            if lastApplied == id {
+                Text("✓")
+                    .foregroundStyle(.green)
+                    .font(.caption)
+            }
+            Button("적용") {
+                action()
+                // 시계 진동 피드백
+                ble.sendCommand(name: "vibrator_start", value: [150])
+                // UI 피드백
+                lastApplied = id
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    if lastApplied == id { lastApplied = nil }
+                }
+            }
             .font(.caption)
-            .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
     }
 
     private func save(_ key: String, _ value: Any) {
