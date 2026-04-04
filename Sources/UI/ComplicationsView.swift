@@ -85,17 +85,24 @@ struct ComplicationsView: View {
     private func apply() {
         let mode = crownMode.rawValue
 
-        // 후보 슬롯 전부 시도
-        for slot in [3, 4, 7, 8] {
-            ble.sendCommand(name: "set_complication_mode", value: [slot, mode])
+        // 1. config_base — 펌웨어에 기본 설정 전달 (complication 모드 전환 전제조건)
+        ble.sendCommand(name: "config_base", value: [1, 0])
+        ble.log("config_base([1, 0]) 전송")
+
+        // 2. 약간의 딜레이 후 complication 명령 전송
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [self] in
+            // complications 배치 (6슬롯 전체)
+            ble.sendCommand(name: "complications", value: [mode, mode, mode, mode, mode, mode])
+
+            // set_complication_mode 개별 슬롯
+            for slot in [3, 4, 7, 8] {
+                ble.sendCommand(name: "set_complication_mode", value: [slot, mode])
+            }
+
+            UserDefaults.standard.set(mode, forKey: Self.savedKey)
+            saved = true
+            ble.log("크라운 설정: \(crownMode.displayName) (mode=\(mode))")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { saved = false }
         }
-
-        // complications 배치 명령도 시도 (6개 슬롯 전체)
-        ble.sendCommand(name: "complications", value: [mode, mode, mode, mode, mode, mode])
-
-        UserDefaults.standard.set(mode, forKey: Self.savedKey)
-        saved = true
-        ble.log("크라운 설정: \(crownMode.displayName) (mode=\(mode)) → 슬롯 3,4,7,8 + complications 전송")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { saved = false }
     }
 }
