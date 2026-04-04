@@ -83,10 +83,19 @@ struct ComplicationsView: View {
     }
 
     private func apply() {
-        ble.sendCommand(name: "set_complication_mode", value: [Self.crownSlotId, crownMode.rawValue])
-        UserDefaults.standard.set(crownMode.rawValue, forKey: Self.savedKey)
+        let mode = crownMode.rawValue
+
+        // 후보 슬롯 전부 시도
+        for slot in [3, 4, 7, 8] {
+            ble.sendCommand(name: "set_complication_mode", value: [slot, mode])
+        }
+
+        // complications 배치 명령도 시도 (6개 슬롯 전체)
+        ble.sendCommand(name: "complications", value: [mode, mode, mode, mode, mode, mode])
+
+        UserDefaults.standard.set(mode, forKey: Self.savedKey)
         saved = true
-        ble.log("크라운 설정: \(crownMode.displayName) → set_complication_mode([\(Self.crownSlotId), \(crownMode.rawValue)])")
+        ble.log("크라운 설정: \(crownMode.displayName) (mode=\(mode)) → 슬롯 3,4,7,8 + complications 전송")
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { saved = false }
     }
 }
