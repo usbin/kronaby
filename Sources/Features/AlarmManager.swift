@@ -18,37 +18,17 @@ struct WatchAlarm: Codable, Identifiable, Equatable {
         return days.sorted().map { names[$0] }.joined(separator: " ")
     }
 
-    // ISO 요일 → Kronaby 비표준 요일 변환
-    // ISO: 1=월, 2=화, 3=수, 4=목, 5=금, 6=토, 7=일
-    // Kronaby: 화=0, 수=1, 목=2, 금=3, 토=4, 일=5, 월=6
-    private static func isoToKronaby(_ isoDay: Int) -> Int {
-        switch isoDay {
-        case 1: return 6  // 월
-        case 2: return 0  // 화
-        case 3: return 1  // 수
-        case 4: return 2  // 목
-        case 5: return 3  // 금
-        case 6: return 4  // 토
-        case 7: return 5  // 일
-        default: return 0
-        }
-    }
-
-    // Kronaby 요일 비트마스크
-    var daysBitmask: Int {
+    // 알람 config byte (실기기 검증 완료)
+    // bit 0 = 1회성 알람 (요일 없을 때)
+    // bits 1-7 = ISO 요일 (월=bit1, 화=bit2, ..., 일=bit7)
+    var configByte: UInt8 {
+        if !enabled { return 0 }
+        if days.isEmpty { return 1 }  // 1회성
         var mask = 0
         for day in days {
-            let kronabyDay = Self.isoToKronaby(day)
-            mask |= (1 << (kronabyDay + 1))  // bit 0 = enabled, bits 1-7 = days
+            mask |= (1 << day)  // ISO: 월=1→bit1, 화=2→bit2, ..., 일=7→bit7
         }
-        return mask
-    }
-
-    // config byte: bit 0 = enabled, bits 1-7 = Kronaby 요일 비트마스크
-    var configByte: UInt8 {
-        var config = daysBitmask
-        if enabled { config |= 1 }
-        return UInt8(config & 0xFF)
+        return UInt8(mask & 0xFF)
     }
 
     // 13바이트 바이너리 인코딩
@@ -102,10 +82,9 @@ final class AlarmManager: ObservableObject {
     }
 
     func applyToWatch(ble: BLEManager) {
-        // [[시, 분, config], ...] — config: 1=활성, 0=비활성
-        // 요일 필터링은 이 펌웨어에서 미지원
+        // [[시, 분, configByte], ...]
         let alarmArrays: [[Int]] = alarms.map { alarm in
-            [alarm.hour, alarm.minute, alarm.enabled ? 1 : 0]
+            [alarm.hour, alarm.minute, Int(alarm.configByte)]
         }
         ble.sendCommand(name: "alarm", value: alarmArrays)
         ble.log("alarm 전송: \(alarmArrays)")

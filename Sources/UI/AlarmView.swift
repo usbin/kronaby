@@ -124,10 +124,9 @@ struct AlarmRow: View {
                 }
             }
 
-            // 요일 필터링은 현재 미지원 (펌웨어 명령 형식 미확인)
-            // DayPicker(days: $alarm.days)
+            DayPicker(days: $alarm.days)
 
-            Text("매일 반복")
+            Text(alarm.daysString)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
