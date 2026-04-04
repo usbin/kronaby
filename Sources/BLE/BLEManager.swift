@@ -430,12 +430,11 @@ extension BLEManager: CBPeripheralDelegate {
                 log("버튼: \(event.buttonName) \(event.eventName)")
             } else if let dict = decoded as? [Int: Any],
                       let vbatId = commandMap["vbat"],
-                      let arr = dict[vbatId] as? [Any],
-                      arr.count >= 2,
-                      let v1 = arr[0] as? Int,
-                      let v2 = arr[1] as? Int {
-                batteryInfo = [v1, v2]
-                log("배터리: \(v1)%, 상태: \(v2)")
+                      let mv = dict[vbatId] as? Int {
+                // millivolts → percentage (CR2025: 3000mV=100%, 2000mV=0%)
+                let percent = min(100, max(0, (mv - 2000) * 100 / 1000))
+                batteryInfo = [percent, mv]
+                log("배터리: \(mv)mV → \(percent)%")
             } else {
                 log("수신(연결): \(String(describing: decoded))")
             }
