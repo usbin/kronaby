@@ -28,14 +28,6 @@ struct ConnectionView: View {
                         .frame(width: 12, height: 12)
                     Text(ble.connectionState.rawValue)
                         .font(.headline)
-                    if let steps = ble.stepsInfo {
-                        Spacer()
-                        Image(systemName: "figure.walk")
-                            .font(.caption)
-                        Text("\(steps[0])")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
                     if let bat = ble.batteryInfo {
                         Spacer()
                         Image(systemName: batteryIcon(bat[0]))
@@ -112,11 +104,6 @@ struct ConnectionView: View {
                         }
                         .buttonStyle(.bordered)
 
-                        Button { ble.requestSteps() } label: {
-                            Label("걸음수", systemImage: "figure.walk")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
                     }
                 }
 

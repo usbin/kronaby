@@ -217,10 +217,7 @@ struct ComplicationsView: View {
                 // HealthKit 상태 확인 및 걸음수 조회
                 checkHealthKitAuth()
 
-                // comp 관련 명령 검색
-                let compCmds = ble.commandMap.filter { $0.key.contains("comp") || $0.key.contains("face") || $0.key.contains("dash") || $0.key.contains("crown") || $0.key.contains("magic") }
-                ble.log("comp 관련 명령: \(compCmds)")
-                ble.log("전체 commandMap (\(ble.commandMap.count)개): \(ble.commandMap.sorted(by: { $0.value < $1.value }).map { "\($0.value):\($0.key)" })")
+                // commandMap 로그 비활성화 (글자수 제한 문제)
             }
         }
     }
