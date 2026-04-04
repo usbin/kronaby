@@ -52,12 +52,7 @@ enum AncsCategory: Int, Codable, CaseIterable, Identifiable {
         }
     }
 
-    // ANCS 카테고리 비트마스크: 1 << (rawValue + 8)
-    var bitmask: Int {
-        1 << (rawValue + 8)
-    }
-
-    // 모든 카테고리 비트마스크
+    var bitmask: Int { 1 << (rawValue + 8) }
     static var allBitmask: Int { 0xFFFFFF }
 }
 
@@ -77,30 +72,64 @@ enum VibrationPattern: Int, Codable, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - 필터 설정
+// MARK: - 필터 타입
 
-struct NotificationFilter: Codable, Equatable, Identifiable {
-    var id: Int             // 필터 인덱스 (0~34), 바늘 위치와 연관 가능
-    var category: AncsCategory?  // nil = 모든 알림
-    var vibration: VibrationPattern
-    var position: Int       // 시계 숫자 위치 (1~12)
-    var enabled: Bool
-    var isAllNotifications: Bool  // 모든 알림 필터 여부
+enum FilterType: Codable, Equatable {
+    case allNotifications           // 모든 알림
+    case category(AncsCategory)     // ANCS 카테고리
+    case app(bundleId: String, name: String)  // 특정 앱
 
     var displayName: String {
-        if isAllNotifications { return "모든 알림" }
-        return category?.displayName ?? "알 수 없음"
+        switch self {
+        case .allNotifications: return "모든 알림"
+        case .category(let c): return c.displayName
+        case .app(_, let name): return name.isEmpty ? "앱 지정" : name
+        }
     }
 
     var systemImage: String {
-        if isAllNotifications { return "bell.badge.fill" }
-        return category?.systemImage ?? "questionmark"
+        switch self {
+        case .allNotifications: return "bell.badge.fill"
+        case .category(let c): return c.systemImage
+        case .app: return "app.fill"
+        }
+    }
+
+    // ANCS 속성 타입: 0=ApplicationId, 255=All
+    var attributeType: Int {
+        switch self {
+        case .app: return 0
+        default: return 255
+        }
+    }
+
+    var searchString: String {
+        switch self {
+        case .app(let bundleId, _): return bundleId
+        default: return ""
+        }
     }
 
     var bitmask: Int {
-        if isAllNotifications { return AncsCategory.allBitmask }
-        return category?.bitmask ?? 0
+        switch self {
+        case .allNotifications: return AncsCategory.allBitmask
+        case .category(let c): return c.bitmask
+        case .app: return AncsCategory.allBitmask  // 앱 필터는 전체 카테고리
+        }
     }
+}
+
+// MARK: - 필터 설정
+
+struct NotificationFilter: Codable, Equatable, Identifiable {
+    var id: String
+    var filterType: FilterType
+    var vibration: VibrationPattern
+    var position: Int       // 시계 숫자 위치 (1~12)
+    var enabled: Bool
+
+    var displayName: String { filterType.displayName }
+    var systemImage: String { filterType.systemImage }
 }
 
 // MARK: - Manager
@@ -108,46 +137,67 @@ struct NotificationFilter: Codable, Equatable, Identifiable {
 final class NotificationMappingManager: ObservableObject {
     @Published var filters: [NotificationFilter] = []
 
-    private static let storageKey = "kronaby_ancs_filters_v2"
+    private static let storageKey = "kronaby_ancs_filters_v3"
+    private var nextFilterIndex = 20  // 앱 필터용 인덱스 (20~34)
 
     init() {
         load()
         if filters.isEmpty {
             filters = [
-                NotificationFilter(id: 0, category: nil, vibration: .single, position: 11, enabled: false, isAllNotifications: true),
-                NotificationFilter(id: 1, category: .incomingCall, vibration: .double, position: 12, enabled: false, isAllNotifications: false),
-                NotificationFilter(id: 2, category: .missedCall, vibration: .single, position: 1, enabled: false, isAllNotifications: false),
-                NotificationFilter(id: 3, category: .social, vibration: .single, position: 2, enabled: false, isAllNotifications: false),
-                NotificationFilter(id: 4, category: .email, vibration: .single, position: 3, enabled: false, isAllNotifications: false),
-                NotificationFilter(id: 5, category: .schedule, vibration: .single, position: 4, enabled: false, isAllNotifications: false),
-                NotificationFilter(id: 6, category: .news, vibration: .single, position: 5, enabled: false, isAllNotifications: false),
-                NotificationFilter(id: 7, category: .entertainment, vibration: .single, position: 6, enabled: false, isAllNotifications: false),
-                NotificationFilter(id: 8, category: .other, vibration: .single, position: 7, enabled: false, isAllNotifications: false),
+                NotificationFilter(id: "all", filterType: .allNotifications, vibration: .single, position: 11, enabled: false),
+                NotificationFilter(id: "call", filterType: .category(.incomingCall), vibration: .double, position: 12, enabled: false),
+                NotificationFilter(id: "missed", filterType: .category(.missedCall), vibration: .single, position: 1, enabled: false),
+                NotificationFilter(id: "social", filterType: .category(.social), vibration: .single, position: 2, enabled: false),
+                NotificationFilter(id: "email", filterType: .category(.email), vibration: .single, position: 3, enabled: false),
+                NotificationFilter(id: "schedule", filterType: .category(.schedule), vibration: .single, position: 4, enabled: false),
+                NotificationFilter(id: "news", filterType: .category(.news), vibration: .single, position: 5, enabled: false),
+                NotificationFilter(id: "entertain", filterType: .category(.entertainment), vibration: .single, position: 6, enabled: false),
+                NotificationFilter(id: "other", filterType: .category(.other), vibration: .single, position: 7, enabled: false),
             ]
         }
+    }
+
+    func addAppFilter(bundleId: String, name: String) {
+        let id = "app_\(bundleId)"
+        guard !filters.contains(where: { $0.id == id }) else { return }
+        nextFilterIndex += 1
+        filters.append(NotificationFilter(
+            id: id,
+            filterType: .app(bundleId: bundleId, name: name),
+            vibration: .single,
+            position: 8,
+            enabled: true
+        ))
+        save()
+    }
+
+    func removeFilter(id: String) {
+        filters.removeAll { $0.id == id }
+        save()
     }
 
     // MARK: - Apply to Watch
 
     func applyToWatch(ble: BLEManager) {
-        for filter in filters {
-            if filter.enabled {
-                // 활성 필터: [index, categoryBitmask, attribute(255=all), "", vibrationPattern]
-                // index가 바늘 위치를 결정할 수 있음 (테스트 필요)
-                let filterIndex = filter.position  // 위치값을 인덱스로 사용
-                ble.sendCommand(name: "ancs_filter", value: [
-                    filterIndex,
-                    filter.bitmask,
-                    255,
-                    "",
-                    filter.vibration.rawValue
-                ] as [Any])
-                ble.log("ancs_filter[\(filterIndex)]: \(filter.displayName) → 위치 \(filter.position), \(filter.vibration.displayName)")
-            } else {
-                // 비활성 필터: [index] (삭제)
-                ble.sendCommand(name: "ancs_filter", value: [filter.position])
-                ble.log("ancs_filter[\(filter.position)]: 삭제")
-            }
+        // 먼저 기존 필터 전체 삭제 (0~34)
+        for i in 0...34 {
+            ble.sendCommand(name: "ancs_filter", value: [i])
+        }
+        ble.log("기존 필터 전체 삭제 (0~34)")
+
+        // 활성 필터 전송
+        var filterIndex = 0
+        for filter in filters where filter.enabled {
+            let idx = filter.position  // 위치값을 인덱스로 사용
+            ble.sendCommand(name: "ancs_filter", value: [
+                idx,
+                filter.filterType.bitmask,
+                filter.filterType.attributeType,
+                filter.filterType.searchString,
+                filter.vibration.rawValue
+            ] as [Any])
+            ble.log("ancs_filter[\(idx)]: \(filter.displayName) → \(filter.position)시, \(filter.vibration.displayName)")
+            filterIndex += 1
         }
     }
 
