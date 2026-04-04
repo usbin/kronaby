@@ -15,11 +15,8 @@ struct AlarmView: View {
                 }
 
                 Section("알람 (\(alarmManager.alarms.count)/\(AlarmManager.maxAlarms))") {
-                    ForEach($alarmManager.alarms) { $alarm in
-                        AlarmRow(alarm: $alarm)
-                    }
-                    .onDelete { offsets in
-                        alarmManager.removeAlarm(at: offsets)
+                    ForEach(alarmManager.alarms.indices, id: \.self) { index in
+                        AlarmRow(alarm: $alarmManager.alarms[index])
                     }
 
                     if alarmManager.alarms.count < AlarmManager.maxAlarms {
@@ -40,9 +37,12 @@ struct AlarmView: View {
                     }
                     .frame(maxWidth: .infinity)
 
-                    Button("알람 전체 삭제 (시계)") {
+                    Button("전체 삭제") {
+                        alarmManager.alarms.removeAll()
+                        alarmManager.save()
+                        // 시계에도 빈 배열 전송
                         ble.sendCommand(name: "alarm", value: [] as [Any])
-                        ble.log("alarm 전체 삭제: 빈 배열 전송")
+                        ble.log("alarm 전체 삭제")
                     }
                     .foregroundStyle(.red)
                     .frame(maxWidth: .infinity)
@@ -63,8 +63,6 @@ struct AlarmView: View {
 struct AlarmRow: View {
     @Binding var alarm: WatchAlarm
     @State private var showTimePicker = false
-
-    private let dayLabels = ["월", "화", "수", "목", "금", "토", "일"]
 
     var body: some View {
         VStack(spacing: 8) {

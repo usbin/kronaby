@@ -92,23 +92,13 @@ final class AlarmManager: ObservableObject {
     }
 
     func applyToWatch(ble: BLEManager) {
-        guard let alarm = alarms.first(where: { $0.enabled }) else {
-            ble.log("활성화된 알람 없음")
-            return
-        }
+        // 활성화된 알람만 전송: [[시, 분], ...]
+        let activeAlarms: [[Int]] = alarms
+            .filter { $0.enabled }
+            .map { [$0.hour, $0.minute] }
 
-        // 형식: [[활성화, 시, 분], ...] (빈 슬롯도 포함해서 8개)
-        var alarmArrays: [[Int]] = []
-        for a in alarms {
-            alarmArrays.append([a.enabled ? 1 : 0, a.hour, a.minute])
-        }
-        // 8개까지 빈 슬롯 채우기
-        while alarmArrays.count < 8 {
-            alarmArrays.append([0, 0, 0])
-        }
-
-        ble.sendCommand(name: "alarm", value: alarmArrays)
-        ble.log("alarm 전송: \(alarmArrays.prefix(alarms.count))")
+        ble.sendCommand(name: "alarm", value: activeAlarms)
+        ble.log("alarm 전송(활성만): \(activeAlarms)")
     }
 
     func save() {
