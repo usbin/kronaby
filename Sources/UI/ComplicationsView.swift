@@ -190,16 +190,17 @@ struct ComplicationsView: View {
                             }
                         }
                     }
-                    Button("MsgPack Map으로 날짜 설정") {
-                        // {45: {3: 0}} — Map 형식으로 시도
-                        // slot 3 = MainComplication, mode 0 = Date
-                        ble.sendCommand(name: "set_complication_mode", value: [3: 0] as [Int: Int])
-                        ble.log("set_complication_mode({3: 0}) Map 형식")
-
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            ble.sendCommand(name: "set_complication_mode", value: [8: 0] as [Int: Int])
-                            ble.log("set_complication_mode({8: 0}) Map 형식")
-                        }
+                    Button("크라운=날짜 [5,0,18]") {
+                        ble.sendCommand(name: "complications", value: [5, 0, 18])
+                        ble.log("complications([5, 0, 18]) 날짜")
+                    }
+                    Button("크라운=걸음수 [5,4,18]") {
+                        ble.sendCommand(name: "complications", value: [5, 4, 18])
+                        ble.log("complications([5, 4, 18]) 걸음수")
+                    }
+                    Button("크라운=없음 [5,15,18]") {
+                        ble.sendCommand(name: "complications", value: [5, 15, 18])
+                        ble.log("complications([5, 15, 18]) 없음(Empty=15)")
                     }
                 }
             }
