@@ -21,12 +21,35 @@ struct KronabyApp: App {
                     locationRecorder.onRecorded = { [weak bleManager] in
                         bleManager?.sendCommand(name: "vibrator_start", value: [150])
                     }
-                    // 연결 완료 시 설정 자동 재전송
+                    // 연결 완료 시 모든 설정 자동 재전송
                     bleManager.onConnected = { [weak bleManager, weak notificationMappingManager] in
-                        guard let ble = bleManager, let mapping = notificationMappingManager else { return }
+                        guard let ble = bleManager else { return }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                            mapping.applyToWatch(ble: ble)
-                            ble.log("연결 복원 → ANCS 필터 재전송")
+                            // 1. 크라운 설정
+                            let crownMode = UserDefaults.standard.integer(forKey: "kronaby_crown_mode")
+                            ble.sendCommand(name: "complications", value: [5, crownMode, 18])
+                            ble.log("재전송: 크라운 mode=\(crownMode)")
+
+                            // 2. 걸음수 목표
+                            let stepGoal = UserDefaults.standard.integer(forKey: "kronaby_step_goal_v2")
+                            if stepGoal > 0 {
+                                ble.sendCommand(name: "steps_target", value: stepGoal)
+                                ble.sendCommand(name: "config_base", value: [1, 1])
+                                ble.log("재전송: steps_target=\(stepGoal)")
+                            }
+
+                            // 3. ANCS 알림 필터
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                                notificationMappingManager?.applyToWatch(ble: ble)
+                                ble.log("재전송: ANCS 필터")
+                            }
+
+                            // 4. 무음 알람 alert_assign
+                            let alarmSlot = UserDefaults.standard.integer(forKey: "kronaby_alarm_slot")
+                            if alarmSlot > 0 {
+                                ble.sendCommand(name: "alert_assign", value: [alarmSlot: 1] as [Int: Int])
+                                ble.log("재전송: alert_assign slot=\(alarmSlot)")
+                            }
                         }
                     }
                     UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
