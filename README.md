@@ -1,11 +1,11 @@
 # Kronaby Companion (iOS)
 
-Kronaby의 공식 앱을 대체하는 오픈소스 iOS 컴패니언 앱.  
+Kronaby의 공식 앱을 대체하는 오픈소스 iOS 컴패니언 앱.
 Kronaby Nord 하이브리드 스마트워치를 BLE로 직접 제어하는 프로젝트입니다.
 
-> **Kronaby 공식 앱 지원 중단에 대비하여**, 기존 역공학 깃헙 프로젝트 기반으로 제작됨
-> 무료 Apple ID + GitHub Actions + SideStore로 빌드/설치
-> **SideStore 서드파티를 사용하여 7일마다 수동 갱신이 필요.(참고: https://docs.sidestore.io/docs/intro)**
+> **Kronaby 공식 앱 지원 중단에 대비하여**, 기존 역공학 깃헙 프로젝트 기반으로 제작됨.
+> - 무료 Apple ID + GitHub Actions + SideStore로 빌드/설치.
+> - **SideStore 서드파티를 사용하여 7일마다 수동 갱신이 필요.(참고: https://docs.sidestore.io/docs/intro)**
 
 ## 참고 프로젝트
 
