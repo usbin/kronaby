@@ -1,50 +1,45 @@
 import SwiftUI
 
-enum ComplicationMode: Int, CaseIterable, Identifiable {
-    case none = 0
-    case time = 1
-    case date = 3
-    case weatherTemp = 4
-    case steps = 5
-    case battery = 6
-    case dateWeekday = 7
-    case dateRadial = 8
-    case seconds = 10
-    case worldtime = 15
-    case alarm = 16
+// APK 디컴파일 기준 크라운 complication 모드값
+// set_complication_mode: [slotId=8(crown), mode]
+enum CrownMode: Int, CaseIterable, Identifiable {
+    case date = 0
+    case timer = 1
+    case stopwatch = 2
+    case remote = 3
+    case dice = 4
+    case stoptime = 5
+    case none = 6
 
     var id: Int { rawValue }
 
     var displayName: String {
         switch self {
+        case .date: return "날짜 확인"
+        case .timer: return "타이머"
+        case .stopwatch: return "스톱워치"
+        case .remote: return "리모트"
+        case .dice: return "주사위"
+        case .stoptime: return "스톱타임"
         case .none: return "없음"
-        case .time: return "시:분"
-        case .date: return "날짜"
-        case .weatherTemp: return "날씨 온도"
-        case .steps: return "만보기"
-        case .battery: return "배터리"
-        case .dateWeekday: return "날짜 + 요일"
-        case .dateRadial: return "날짜 (방사형)"
-        case .seconds: return "초"
-        case .worldtime: return "세계시간"
-        case .alarm: return "알람"
         }
     }
 }
 
 struct ComplicationsView: View {
     @EnvironmentObject var ble: BLEManager
-    @State private var mainMode: ComplicationMode = .date
+    @State private var crownMode: CrownMode = .date
     @State private var saved = false
 
-    private static let savedKey = "kronaby_complication_main"
+    private static let savedKey = "kronaby_crown_mode"
+    private static let crownSlotId = 8 // Slot.MagicKey
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("크라운 클릭 시 표시") {
-                    Picker("기능", selection: $mainMode) {
-                        ForEach(ComplicationMode.allCases) { mode in
+                Section("크라운 1회 클릭 시 기능") {
+                    Picker("기능", selection: $crownMode) {
+                        ForEach(CrownMode.allCases) { mode in
                             Text(mode.displayName).tag(mode)
                         }
                     }
@@ -75,16 +70,17 @@ struct ComplicationsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .onAppear {
                 let raw = UserDefaults.standard.integer(forKey: Self.savedKey)
-                mainMode = ComplicationMode(rawValue: raw) ?? .date
+                crownMode = CrownMode(rawValue: raw) ?? .date
             }
         }
     }
 
     private func apply() {
-        ble.sendCommand(name: "complications", value: [mainMode.rawValue])
-        UserDefaults.standard.set(mainMode.rawValue, forKey: Self.savedKey)
+        // set_complication_mode: [slotId, mode]
+        ble.sendCommand(name: "set_complication_mode", value: [Self.crownSlotId, crownMode.rawValue])
+        UserDefaults.standard.set(crownMode.rawValue, forKey: Self.savedKey)
         saved = true
-        ble.log("complications 설정: \(mainMode.displayName) (\(mainMode.rawValue))")
+        ble.log("크라운 설정: \(crownMode.displayName) → set_complication_mode([\(Self.crownSlotId), \(crownMode.rawValue)])")
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { saved = false }
     }
 }
