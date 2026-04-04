@@ -51,10 +51,16 @@ final class BLEManager: NSObject, ObservableObject {
         return UserDefaults.standard.dictionary(forKey: Self.savedCommandMapKey) as? [String: Int]
     }
 
+    static let restoreIdentifier = "com.usbin.kronaby.ble"
+
     override init() {
         super.init()
-        centralManager = CBCentralManager(delegate: self, queue: .main)
-        log("BLEManager 초기화")
+        centralManager = CBCentralManager(
+            delegate: self,
+            queue: .main,
+            options: [CBCentralManagerOptionRestoreIdentifierKey: Self.restoreIdentifier]
+        )
+        log("BLEManager 초기화 (State Restoration)")
     }
 
     func log(_ msg: String) {
@@ -118,7 +124,10 @@ final class BLEManager: NSObject, ObservableObject {
         }
     }
 
+    private var intentionalDisconnect = false
+
     func disconnect() {
+        intentionalDisconnect = true
         if let peripheral = peripheral {
             centralManager.cancelPeripheralConnection(peripheral)
             log("연결 해제 요청")
@@ -211,6 +220,27 @@ final class BLEManager: NSObject, ObservableObject {
 // MARK: - CBCentralManagerDelegate
 
 extension BLEManager: CBCentralManagerDelegate {
+    func centralManager(_ central: CBCentralManager, willRestoreState dict: [String: Any]) {
+        log("State Restoration 시작")
+        // iOS가 앱을 깨웠을 때 이전 연결 복원
+        if let peripherals = dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral],
+           let restored = peripherals.first {
+            log("복원된 페리퍼럴: \(restored.name ?? "?")")
+            self.peripheral = restored
+            restored.delegate = self
+
+            if restored.state == .connected {
+                log("이미 연결됨 — 서비스 재검색")
+                connectionState = .connecting
+                restored.discoverServices(nil)
+            } else {
+                log("복원 후 재연결 시도")
+                connectionState = .connecting
+                central.connect(restored, options: nil)
+            }
+        }
+    }
+
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         log("BLE state → \(central.state.rawValue)")
         switch central.state {
@@ -265,11 +295,21 @@ extension BLEManager: CBCentralManagerDelegate {
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         log("연결 끊김: \(error?.localizedDescription ?? "정상")")
-        connectionState = .disconnected
-        self.peripheral = nil
         commandChar = nil
         notifyChar = nil
-        commandMap.removeAll()
+
+        if !intentionalDisconnect, loadSavedCommandMap() != nil {
+            // 의도치 않은 끊김 → 자동 재연결
+            log("자동 재연결 시도...")
+            connectionState = .connecting
+            central.connect(peripheral, options: nil)
+        } else {
+            // 유저가 요청한 연결 해제
+            intentionalDisconnect = false
+            connectionState = .disconnected
+            self.peripheral = nil
+            commandMap.removeAll()
+        }
     }
 }
 
