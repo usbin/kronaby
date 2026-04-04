@@ -71,62 +71,8 @@ struct ComplicationsView: View {
                     }
                 }
 
-                // MARK: - 걸음수 목표
-                Section("걸음수 목표") {
-                    Stepper("목표: \(stepGoal.formatted()) 걸음", value: $stepGoal, in: 1000...50000, step: 1000)
-
-                    Stepper("보폭: \(stepLength) cm", value: $stepLength, in: 40...120, step: 5)
-
-                    Button("목표 시계에 전송") {
-                        applyStepGoal()
-                    }
-                    .frame(maxWidth: .infinity)
-
-                    if stepGoalSaved {
-                        Text("목표 전송 완료!")
-                            .foregroundStyle(.green)
-                            .frame(maxWidth: .infinity)
-                    }
-                }
-
-                // MARK: - 오늘 걸음수 달성률
-                Section("오늘 걸음수") {
-                    if healthKitAuthorized {
-                        HStack {
-                            Text("걸음수")
-                            Spacer()
-                            Text("\(todaySteps.formatted()) / \(stepGoal.formatted())")
-                                .foregroundStyle(.secondary)
-                        }
-
-                        let progress = stepGoal > 0 ? min(1.0, Double(todaySteps) / Double(stepGoal)) : 0
-                        ProgressView(value: progress)
-                            .tint(progress >= 1.0 ? .green : .blue)
-
-                        HStack {
-                            Text("달성률")
-                            Spacer()
-                            Text("\(Int(progress * 100))%")
-                                .font(.headline)
-                                .foregroundStyle(progress >= 1.0 ? .green : .primary)
-                        }
-
-                        Button("새로고침") {
-                            fetchTodaySteps()
-                        }
-                        .font(.caption)
-                    } else {
-                        Button("건강 데이터 접근 허용") {
-                            requestHealthKit()
-                        }
-                        Text("HealthKit 권한이 필요합니다.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
                 Section {
-                    Text("세계시간은 시계 설정에서 UTC 오프셋을 지정하세요.")
+                    Text("세계시간 UTC 오프셋과 걸음수 목표는\n시계 설정에서 변경할 수 있습니다.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

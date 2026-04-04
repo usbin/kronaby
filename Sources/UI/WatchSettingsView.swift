@@ -1,7 +1,5 @@
 import SwiftUI
 
-// MARK: - 뮤트/카메라 트리거
-
 enum TriggerValue: Int, CaseIterable, Identifiable {
     case none = 0
     case camera = 1
@@ -9,7 +7,6 @@ enum TriggerValue: Int, CaseIterable, Identifiable {
     case mute = 3
 
     var id: Int { rawValue }
-
     var displayName: String {
         switch self {
         case .none: return "없음"
@@ -23,28 +20,17 @@ enum TriggerValue: Int, CaseIterable, Identifiable {
 struct WatchSettingsView: View {
     @EnvironmentObject var ble: BLEManager
 
-    // Triggers
     @State private var topTrigger: TriggerValue = .none
     @State private var bottomTrigger: TriggerValue = .none
-
-    // DND
     @State private var dndEnabled = false
     @State private var dndStartHour = 22
     @State private var dndStartMin = 0
     @State private var dndEndHour = 7
     @State private var dndEndMin = 0
-
-    // World Time
     @State private var worldTimeHour = 0
     @State private var worldTimeMin = 0
-
-    // Vibration
-    @State private var vibStrength: Int = 0  // 0=normal, 1=stronger
-
-    // Steps
+    @State private var vibStrength: Int = 0
     @State private var stepGoal: Int = 4000
-
-    @State private var applied = false
 
     private static let triggerTopKey = "kronaby_trigger_top"
     private static let triggerBottomKey = "kronaby_trigger_bottom"
@@ -62,25 +48,27 @@ struct WatchSettingsView: View {
         NavigationStack {
             Form {
                 // MARK: - HID 트리거
-                Section("HID 트리거 (하드웨어 기능)") {
+                Section("HID 트리거") {
                     Picker("상단 버튼", selection: $topTrigger) {
-                        ForEach(TriggerValue.allCases) { val in
-                            Text(val.displayName).tag(val)
-                        }
+                        ForEach(TriggerValue.allCases) { Text($0.displayName).tag($0) }
                     }
                     Picker("하단 버튼", selection: $bottomTrigger) {
-                        ForEach(TriggerValue.allCases) { val in
-                            Text(val.displayName).tag(val)
-                        }
+                        ForEach(TriggerValue.allCases) { Text($0.displayName).tag($0) }
                     }
-                    Text("카메라/음소거는 BLE HID로 동작합니다.\n버튼 매핑의 앱 액션과 별개로 작동합니다.")
+                    applyButton {
+                        ble.sendCommand(name: "triggers", value: [topTrigger.rawValue, bottomTrigger.rawValue])
+                        save(Self.triggerTopKey, topTrigger.rawValue)
+                        save(Self.triggerBottomKey, bottomTrigger.rawValue)
+                        ble.log("triggers: [\(topTrigger.displayName), \(bottomTrigger.displayName)]")
+                    }
+                    Text("버튼 매핑의 앱 액션과 별개로 작동합니다.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
                 // MARK: - 방해금지
                 Section("방해금지 (DND)") {
-                    Toggle("방해금지 활성화", isOn: $dndEnabled)
+                    Toggle("활성화", isOn: $dndEnabled)
 
                     if dndEnabled {
                         HStack {
@@ -88,25 +76,32 @@ struct WatchSettingsView: View {
                             Spacer()
                             Picker("시", selection: $dndStartHour) {
                                 ForEach(0..<24, id: \.self) { Text("\($0)시") }
-                            }
-                            .pickerStyle(.menu)
+                            }.pickerStyle(.menu)
                             Picker("분", selection: $dndStartMin) {
                                 ForEach([0, 15, 30, 45], id: \.self) { Text(String(format: "%02d분", $0)) }
-                            }
-                            .pickerStyle(.menu)
+                            }.pickerStyle(.menu)
                         }
                         HStack {
                             Text("종료")
                             Spacer()
                             Picker("시", selection: $dndEndHour) {
                                 ForEach(0..<24, id: \.self) { Text("\($0)시") }
-                            }
-                            .pickerStyle(.menu)
+                            }.pickerStyle(.menu)
                             Picker("분", selection: $dndEndMin) {
                                 ForEach([0, 15, 30, 45], id: \.self) { Text(String(format: "%02d분", $0)) }
-                            }
-                            .pickerStyle(.menu)
+                            }.pickerStyle(.menu)
                         }
+                    }
+                    applyButton {
+                        ble.sendCommand(name: "stillness", value: [
+                            dndEnabled ? 1 : 0, dndStartHour, dndStartMin, dndEndHour, dndEndMin
+                        ])
+                        save(Self.dndEnabledKey, dndEnabled)
+                        save(Self.dndStartHKey, dndStartHour)
+                        save(Self.dndStartMKey, dndStartMin)
+                        save(Self.dndEndHKey, dndEndHour)
+                        save(Self.dndEndMKey, dndEndMin)
+                        ble.log("DND: \(dndEnabled ? "ON" : "OFF") \(dndStartHour):\(String(format: "%02d", dndStartMin))~\(dndEndHour):\(String(format: "%02d", dndEndMin))")
                     }
                 }
 
@@ -119,18 +114,19 @@ struct WatchSettingsView: View {
                             ForEach(-12...14, id: \.self) { h in
                                 Text("\(h >= 0 ? "+" : "")\(h)시간").tag(h)
                             }
-                        }
-                        .pickerStyle(.menu)
+                        }.pickerStyle(.menu)
                         Picker("분", selection: $worldTimeMin) {
                             ForEach([0, 30, 45], id: \.self) { m in
                                 Text("\(m)분").tag(m)
                             }
-                        }
-                        .pickerStyle(.menu)
+                        }.pickerStyle(.menu)
                     }
-                    Text("시계의 세컨드 타임존을 설정합니다.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    applyButton {
+                        ble.sendCommand(name: "timezone2", value: [worldTimeHour, worldTimeMin])
+                        save(Self.worldTimeHKey, worldTimeHour)
+                        save(Self.worldTimeMKey, worldTimeMin)
+                        ble.log("timezone2: UTC\(worldTimeHour >= 0 ? "+" : "")\(worldTimeHour):\(String(format: "%02d", worldTimeMin))")
+                    }
                 }
 
                 // MARK: - 진동 세기
@@ -140,9 +136,15 @@ struct WatchSettingsView: View {
                         Text("강하게").tag(1)
                     }
                     .pickerStyle(.segmented)
-                    Text("일반: 짧은 진동 / 강하게: 긴 진동 (더 강하게 느껴짐)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    applyButton {
+                        if vibStrength == 1 {
+                            ble.sendCommand(name: "vibrator_config", value: [8, 600])
+                        } else {
+                            ble.sendCommand(name: "vibrator_config", value: [8, 150])
+                        }
+                        save(Self.vibStrengthKey, vibStrength)
+                        ble.log("vibrator_config: \(vibStrength == 1 ? "강하게" : "일반")")
+                    }
                 }
 
                 // MARK: - 걸음수
@@ -157,26 +159,15 @@ struct WatchSettingsView: View {
                             Text("—")
                                 .foregroundStyle(.secondary)
                         }
-                        Button("새로고침") {
-                            ble.requestSteps()
-                        }
-                        .font(.caption)
+                        Button("새로고침") { ble.requestSteps() }
+                            .font(.caption)
                     }
-
                     Stepper("목표: \(stepGoal.formatted())걸음", value: $stepGoal, in: 1000...50000, step: 1000)
-                }
-
-                // MARK: - 적용
-                Section {
-                    Button("시계에 적용") {
-                        applyAll()
-                    }
-                    .frame(maxWidth: .infinity)
-
-                    if applied {
-                        Text("적용 완료!")
-                            .foregroundStyle(.green)
-                            .frame(maxWidth: .infinity)
+                    applyButton {
+                        ble.sendCommand(name: "steps_target", value: stepGoal)
+                        ble.sendCommand(name: "config_base", value: [1, 1])
+                        save(Self.stepGoalKey, stepGoal)
+                        ble.log("steps_target: \(stepGoal)")
                     }
                 }
             }
@@ -186,53 +177,17 @@ struct WatchSettingsView: View {
         }
     }
 
-    private func applyAll() {
-        // Triggers
-        ble.sendCommand(name: "triggers", value: [topTrigger.rawValue, bottomTrigger.rawValue])
-        ble.log("triggers: [\(topTrigger.displayName), \(bottomTrigger.displayName)]")
+    // MARK: - Helpers
 
-        // DND
-        ble.sendCommand(name: "stillness", value: [
-            dndEnabled ? 1 : 0, dndStartHour, dndStartMin, dndEndHour, dndEndMin
-        ])
-        ble.log("DND: \(dndEnabled ? "ON" : "OFF") \(dndStartHour):\(String(format: "%02d", dndStartMin))~\(dndEndHour):\(String(format: "%02d", dndEndMin))")
-
-        // World Time (timezone2)
-        ble.sendCommand(name: "timezone2", value: [worldTimeHour, worldTimeMin])
-        ble.log("timezone2: UTC\(worldTimeHour >= 0 ? "+" : "")\(worldTimeHour):\(String(format: "%02d", worldTimeMin))")
-
-        // Vibration strength
-        if vibStrength == 1 {
-            // Stronger: 600ms single pulse
-            ble.sendCommand(name: "vibrator_config", value: [8, 600])
-        } else {
-            // Normal: 150ms single pulse
-            ble.sendCommand(name: "vibrator_config", value: [8, 150])
-        }
-        ble.log("vibrator_config: \(vibStrength == 1 ? "강하게(600ms)" : "일반(150ms)")")
-
-        // Steps target
-        ble.sendCommand(name: "steps_target", value: stepGoal)
-        ble.sendCommand(name: "config_base", value: [1, 1])
-        ble.log("steps_target: \(stepGoal)")
-
-        saveSettings()
-        applied = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { applied = false }
+    @ViewBuilder
+    private func applyButton(action: @escaping () -> Void) -> some View {
+        Button("적용") { action() }
+            .font(.caption)
+            .frame(maxWidth: .infinity, alignment: .trailing)
     }
 
-    private func saveSettings() {
-        UserDefaults.standard.set(topTrigger.rawValue, forKey: Self.triggerTopKey)
-        UserDefaults.standard.set(bottomTrigger.rawValue, forKey: Self.triggerBottomKey)
-        UserDefaults.standard.set(dndEnabled, forKey: Self.dndEnabledKey)
-        UserDefaults.standard.set(dndStartHour, forKey: Self.dndStartHKey)
-        UserDefaults.standard.set(dndStartMin, forKey: Self.dndStartMKey)
-        UserDefaults.standard.set(dndEndHour, forKey: Self.dndEndHKey)
-        UserDefaults.standard.set(dndEndMin, forKey: Self.dndEndMKey)
-        UserDefaults.standard.set(worldTimeHour, forKey: Self.worldTimeHKey)
-        UserDefaults.standard.set(worldTimeMin, forKey: Self.worldTimeMKey)
-        UserDefaults.standard.set(vibStrength, forKey: Self.vibStrengthKey)
-        UserDefaults.standard.set(stepGoal, forKey: Self.stepGoalKey)
+    private func save(_ key: String, _ value: Any) {
+        UserDefaults.standard.set(value, forKey: key)
     }
 
     private func loadSettings() {

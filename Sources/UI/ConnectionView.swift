@@ -6,8 +6,7 @@ struct ConnectionView: View {
     @EnvironmentObject var locationRecorder: LocationRecorder
     @EnvironmentObject var notificationMappingManager: NotificationMappingManager
     @State private var showHelp = false
-    @State private var showLog = true
-    @State private var showMenu = false
+    @State private var showLog = false
     @State private var showForgetConfirm = false
     @State private var showCalibration = false
     @State private var showTimeSetting = false
@@ -21,15 +20,22 @@ struct ConnectionView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 12) {
-                // Connection status + battery
+                // MARK: - 상태바 (연결 + 배터리 + 걸음수)
                 HStack {
                     Circle()
                         .fill(statusColor)
                         .frame(width: 12, height: 12)
                     Text(ble.connectionState.rawValue)
                         .font(.headline)
+                    Spacer()
+                    if let steps = ble.stepsInfo {
+                        Image(systemName: "figure.walk")
+                            .font(.caption)
+                        Text("\(steps[0])")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     if let bat = ble.batteryInfo {
-                        Spacer()
                         Image(systemName: batteryIcon(bat[0]))
                             .foregroundStyle(bat[0] <= 15 ? .red : .green)
                         Text("\(bat[0])%")
@@ -38,7 +44,7 @@ struct ConnectionView: View {
                     }
                 }
 
-                // Last button event
+                // 마지막 버튼 이벤트
                 if let event = ble.lastButtonEvent {
                     Text("\(event.buttonName) — \(event.eventName)")
                         .font(.title3)
@@ -47,67 +53,59 @@ struct ConnectionView: View {
                         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
                 }
 
-                // Connected: show tools
                 if ble.connectionState == .connected {
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                        Button { showCalibration = true } label: {
-                            Label("영점 조정", systemImage: "dial.low")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
+                    ScrollView {
+                        VStack(spacing: 16) {
+                            // MARK: - 자주 사용 (알람 + 위치)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("자주 사용")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                                    menuButton("무음 알람", icon: "alarm") { showAlarm = true }
+                                    menuButton("위치 기록", icon: "mappin.and.ellipse") { showLocationHistory = true }
+                                }
+                            }
 
-                        Button { showTimeSetting = true } label: {
-                            Label("시각 설정", systemImage: "clock")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
+                            // MARK: - 입출력 매핑
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("입출력 매핑")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                                    menuButton("크라운", icon: "crown") { showComplications = true }
+                                    menuButton("버튼", icon: "hand.tap") { showButtonMapping = true }
+                                    menuButton("알림", icon: "bell.badge") { showNotificationMapping = true }
+                                }
+                            }
 
-                        Button { showButtonMapping = true } label: {
-                            Label("버튼 매핑", systemImage: "hand.tap")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
+                            // MARK: - 정보
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("정보")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                                    menuButton("배터리", icon: "battery.100") { ble.requestBattery() }
+                                    menuButton("걸음수", icon: "figure.walk") { ble.requestSteps() }
+                                }
+                            }
 
-                        Button { showComplications = true } label: {
-                            Label("크라운", systemImage: "crown")
-                                .frame(maxWidth: .infinity)
+                            // MARK: - 설정 (접힘)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("설정")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                                    menuButton("시계 설정", icon: "gearshape") { showWatchSettings = true }
+                                    menuButton("영점 조정", icon: "dial.low") { showCalibration = true }
+                                    menuButton("시각 설정", icon: "clock") { showTimeSetting = true }
+                                }
+                            }
                         }
-                        .buttonStyle(.bordered)
-
-                        Button { ble.requestBattery() } label: {
-                            Label("배터리", systemImage: "battery.100")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-
-                        Button { showLocationHistory = true } label: {
-                            Label("위치 기록", systemImage: "mappin.and.ellipse")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-
-                        Button { showNotificationMapping = true } label: {
-                            Label("알림 매핑", systemImage: "bell.badge")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-
-                        Button { showAlarm = true } label: {
-                            Label("무음 알람", systemImage: "alarm")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-
-                        Button { showWatchSettings = true } label: {
-                            Label("시계 설정", systemImage: "gearshape")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-
                     }
                 }
 
-                // Scan results
+                // 스캔 결과
                 if !ble.discoveredPeripherals.isEmpty && ble.connectionState != .connected {
                     List(ble.discoveredPeripherals, id: \.identifier) { peripheral in
                         Button {
@@ -126,7 +124,7 @@ struct ConnectionView: View {
                     .frame(maxHeight: 150)
                 }
 
-                // Debug log
+                // 디버그 로그
                 if showLog {
                     VStack(spacing: 4) {
                         HStack {
@@ -164,7 +162,7 @@ struct ConnectionView: View {
 
                 Spacer()
 
-                // Action buttons
+                // 하단 액션
                 switch ble.connectionState {
                 case .disconnected:
                     Button("스캔 시작") { ble.startScan() }
@@ -254,6 +252,25 @@ struct ConnectionView: View {
                     .environmentObject(ble)
             }
         }
+    }
+
+    // MARK: - Helpers
+
+    @ViewBuilder
+    private func menuButton(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.title3)
+                Text(title)
+                    .font(.caption2)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(Color(.systemGray6))
+            .cornerRadius(10)
+        }
+        .foregroundStyle(.primary)
     }
 
     private var statusColor: Color {
