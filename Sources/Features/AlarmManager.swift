@@ -92,9 +92,10 @@ final class AlarmManager: ObservableObject {
     }
 
     func applyToWatch(ble: BLEManager) {
-        // 단순 형식: [[활성화(0/1), 시, 분], ...]
+        // HybridAlarm 형식: [[시, 분, configByte], ...]
+        // configByte: bit0=enabled, bits1-7=daysBitmask
         let alarmArrays: [[Int]] = alarms.map { alarm in
-            [alarm.enabled ? 1 : 0, alarm.hour, alarm.minute]
+            [alarm.hour, alarm.minute, Int(alarm.configByte)]
         }
 
         ble.sendCommand(name: "alarm", value: alarmArrays)
