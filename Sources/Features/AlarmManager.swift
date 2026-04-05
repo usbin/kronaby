@@ -90,12 +90,7 @@ final class AlarmManager: ObservableObject {
             .filter { $0.enabled }
             .map { [$0.hour, $0.minute, Int($0.configByte)] }
 
-        // 1. alert_assign 초기화 (1~3 모두 알림으로)
-        for pos in 1...3 {
-            ble.sendCommand(name: "alert_assign", value: [pos: 0] as [Int: Int])
-        }
-
-        // 2. 선택한 위치를 알람으로 할당
+        // 1. 알람 슬롯만 설정 (다른 위치는 건드리지 않음)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             if !activeAlarms.isEmpty {
                 ble.sendCommand(name: "alert_assign", value: [self.alarmSlot: 1] as [Int: Int])

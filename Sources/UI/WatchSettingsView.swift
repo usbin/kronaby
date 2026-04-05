@@ -227,31 +227,29 @@ struct WatchSettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    HStack(spacing: 8) {
-                        Button("exec_predef") {
-                            ble.sendCommand(name: "stepper_exec_predef", value: [testMotor, testPosition, 0, 0])
-                            ble.log("stepper_exec_predef([\(testMotor), \(testPosition), 0, 0])")
-                        }
-                        Button("exec_custom") {
-                            ble.sendCommand(name: "stepper_exec_custom", value: [testMotor, testPosition])
-                            ble.log("stepper_exec_custom([\(testMotor), \(testPosition)])")
-                        }
-                        Button("def_custom") {
-                            ble.sendCommand(name: "stepper_def_custom", value: [testMotor, testPosition])
-                            ble.log("stepper_def_custom([\(testMotor), \(testPosition)])")
-                        }
+                    Button("exec_predef") {
+                        ble.sendCommand(name: "stepper_exec_predef", value: [testMotor, testPosition, 0, 0])
+                        ble.log("stepper_exec_predef([\(testMotor), \(testPosition), 0, 0])")
                     }
                     .font(.caption)
-
-                    HStack(spacing: 8) {
-                        Button("delay(0)") {
-                            ble.sendCommand(name: "stepper_delay", value: 0)
-                            ble.log("stepper_delay(0)")
-                        }
-                        Button("goto 단일값") {
-                            ble.sendCommand(name: "stepper_goto", value: testPosition)
-                            ble.log("stepper_goto(\(testPosition)) 단일")
-                        }
+                    Button("exec_custom") {
+                        ble.sendCommand(name: "stepper_exec_custom", value: [testMotor, testPosition])
+                        ble.log("stepper_exec_custom([\(testMotor), \(testPosition)])")
+                    }
+                    .font(.caption)
+                    Button("def_custom") {
+                        ble.sendCommand(name: "stepper_def_custom", value: [testMotor, testPosition])
+                        ble.log("stepper_def_custom([\(testMotor), \(testPosition)])")
+                    }
+                    .font(.caption)
+                    Button("delay(0)") {
+                        ble.sendCommand(name: "stepper_delay", value: 0)
+                        ble.log("stepper_delay(0)")
+                    }
+                    .font(.caption)
+                    Button("goto 단일값") {
+                        ble.sendCommand(name: "stepper_goto", value: testPosition)
+                        ble.log("stepper_goto(\(testPosition)) 단일")
                     }
                     .font(.caption)
                 }
