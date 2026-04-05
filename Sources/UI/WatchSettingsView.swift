@@ -185,38 +185,18 @@ struct WatchSettingsView: View {
                         .pickerStyle(.segmented)
                     }
 
-                    HStack {
-                        Text("위치: \(testPosition)")
-                        Slider(value: Binding(
-                            get: { Double(testPosition) },
-                            set: { testPosition = Int($0) }
-                        ), in: 0...180, step: 1)
-                    }
+                    Stepper("위치: \(testPosition)", value: $testPosition, in: 0...180)
 
                     HStack(spacing: 8) {
                         Button("이동") {
                             ble.sendCommand(name: "stepper_goto", value: [testMotor, testPosition])
                             ble.log("stepper_goto([\(testMotor), \(testPosition)])")
                         }
-                        Button("0") {
-                            testPosition = 0
-                            ble.sendCommand(name: "stepper_goto", value: [testMotor, 0])
-                            ble.log("stepper_goto([\(testMotor), 0])")
-                        }
-                        Button("15") {
-                            testPosition = 15
-                            ble.sendCommand(name: "stepper_goto", value: [testMotor, 15])
-                            ble.log("stepper_goto([\(testMotor), 15])")
-                        }
-                        Button("30") {
-                            testPosition = 30
-                            ble.sendCommand(name: "stepper_goto", value: [testMotor, 30])
-                            ble.log("stepper_goto([\(testMotor), 30])")
-                        }
-                        Button("60") {
-                            testPosition = 60
-                            ble.sendCommand(name: "stepper_goto", value: [testMotor, 60])
-                            ble.log("stepper_goto([\(testMotor), 60])")
+                        ForEach([0, 5, 10, 15, 30, 60], id: \.self) { val in
+                            Button("\(val)") {
+                                ble.sendCommand(name: "stepper_goto", value: [testMotor, val])
+                                ble.log("stepper_goto([\(testMotor), \(val)])")
+                            }
                         }
                     }
                     .font(.caption)

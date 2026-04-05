@@ -7,14 +7,20 @@ final class FindMyPhone {
     private var timer: Timer?
     private var previousVolume: Float?
 
+    static var maxVolumeEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: "findphone_max_volume") }
+        set { UserDefaults.standard.set(newValue, forKey: "findphone_max_volume") }
+    }
+
     func play() {
         do {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
             try AVAudioSession.sharedInstance().setActive(true)
 
-            // 현재 볼륨 저장 → 최대로
-            previousVolume = AVAudioSession.sharedInstance().outputVolume
-            MPVolumeView.setVolume(1.0)
+            if Self.maxVolumeEnabled {
+                previousVolume = AVAudioSession.sharedInstance().outputVolume
+                setSystemVolume(1.0)
+            }
 
             let soundURL = URL(fileURLWithPath: "/System/Library/Audio/UISounds/alarm.caf")
             player = try AVAudioPlayer(contentsOf: soundURL)
@@ -39,22 +45,17 @@ final class FindMyPhone {
         timer = nil
         player?.stop()
         player = nil
-
-        // 볼륨 복원
-        if let vol = previousVolume {
-            MPVolumeView.setVolume(vol)
-            previousVolume = nil
-        }
-        try? AVAudioSession.sharedInstance().setActive(false)
+        // 볼륨 최대화 옵션 사용 시 복원하지 않음 (의도적)
+        previousVolume = nil
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
-}
 
-extension MPVolumeView {
-    static func setVolume(_ volume: Float) {
-        let volumeView = MPVolumeView()
-        let slider = volumeView.subviews.first(where: { $0 is UISlider }) as? UISlider
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
-            slider?.value = volume
+    private func setSystemVolume(_ volume: Float) {
+        let volumeView = MPVolumeView(frame: .zero)
+        if let slider = volumeView.subviews.first(where: { $0 is UISlider }) as? UISlider {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+                slider.value = volume
+            }
         }
     }
 }

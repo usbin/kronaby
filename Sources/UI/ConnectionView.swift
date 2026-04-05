@@ -44,6 +44,21 @@ struct ConnectionView: View {
                     }
                 }
 
+                // 폰 찾기 재생 중 → 끄기 버튼
+                if actionManager.isFindMyPhonePlaying {
+                    Button {
+                        actionManager.stopFindMyPhone()
+                    } label: {
+                        Label("소리 끄기", systemImage: "speaker.slash.fill")
+                            .font(.headline)
+                            .padding()
+                            .frame(maxWidth: .infinity)
+                            .background(.red)
+                            .foregroundStyle(.white)
+                            .cornerRadius(12)
+                    }
+                }
+
                 // 마지막 버튼 이벤트
                 if let event = ble.lastButtonEvent {
                     Text("\(event.buttonName) — \(event.eventName)")

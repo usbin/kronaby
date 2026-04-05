@@ -79,7 +79,8 @@ final class ButtonActionManager: ObservableObject {
     @Published var isExtendedMode = false
     @Published var extendedBits: [Int] = []  // 입력 중인 비트
 
-    private let findMyPhone = FindMyPhone()
+    let findMyPhone = FindMyPhone()
+    @Published var isFindMyPhonePlaying = false
     private let musicController = MusicController()
     var locationRecorder: LocationRecorder?
     var bleManager: BLEManager?
@@ -164,9 +165,15 @@ final class ButtonActionManager: ObservableObject {
 
     func handleFindMyPhone() {
         findMyPhone.play()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
-            self?.findMyPhone.stop()
+        isFindMyPhonePlaying = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
+            self?.stopFindMyPhone()
         }
+    }
+
+    func stopFindMyPhone() {
+        findMyPhone.stop()
+        isFindMyPhonePlaying = false
     }
 
     // MARK: - Extended Input Mode (16종)
