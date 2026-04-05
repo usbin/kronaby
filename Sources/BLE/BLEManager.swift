@@ -69,7 +69,7 @@ final class BLEManager: NSObject, ObservableObject {
         let time = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
         debugLog.append("[\(time)] \(msg)")
         // Keep last 50 entries
-        if debugLog.count > 50 { debugLog.removeFirst() }
+        if debugLog.count > 500 { debugLog.removeFirst() }
     }
 
     // MARK: - Public API
