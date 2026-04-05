@@ -78,6 +78,8 @@ final class ButtonActionManager: ObservableObject {
     @Published var extendedMappings: [ButtonAction] = Array(repeating: ButtonAction(), count: 16)
     @Published var isExtendedMode = false
     @Published var extendedBits: [Int] = []  // 입력 중인 비트
+    private var handHoldTimer: Timer?         // 바늘 위치 유지 타이머
+    private var handHoldPosition: Int = 0     // 유지할 바늘 위치
 
     let findMyPhone = FindMyPhone()
     @Published var isFindMyPhonePlaying = false
@@ -181,6 +183,7 @@ final class ButtonActionManager: ObservableObject {
     private func cancelExtendedMode() {
         isExtendedMode = false
         extendedBits = []
+        stopHandHoldTimer()
         // 진동 3회 — 취소
         bleManager?.sendCommand(name: "vibrator_start", value: [150, 100, 150, 100, 150])
         // datetime으로 바늘 즉시 복귀
@@ -193,9 +196,28 @@ final class ButtonActionManager: ObservableObject {
         extendedBits = []
         // 진동 1회
         bleManager?.sendCommand(name: "vibrator_start", value: [150])
-        // 시침+분침 → 55분 위치 (11시 방향)
+        // 시침+분침 → 55분 위치 (11시 방향) + 주기적 재전송으로 위치 유지
         moveHands(to: 55)
+        startHandHoldTimer(position: 55)
         bleManager?.log("확장입력모드 시작 → 11시")
+    }
+
+    /// stepper_goto를 주기적으로 재전송하여 펌웨어의 datetime 자동 복귀를 억제
+    private func startHandHoldTimer(position: Int) {
+        stopHandHoldTimer()
+        handHoldPosition = position
+        handHoldTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            guard let self, self.isExtendedMode else {
+                self?.stopHandHoldTimer()
+                return
+            }
+            self.moveHands(to: self.handHoldPosition)
+        }
+    }
+
+    private func stopHandHoldTimer() {
+        handHoldTimer?.invalidate()
+        handHoldTimer = nil
     }
 
     private func handleExtendedInput(event: Int) {
@@ -230,15 +252,16 @@ final class ButtonActionManager: ObservableObject {
 
             isExtendedMode = false
             extendedBits = []
+            stopHandHoldTimer()  // 입력 대기 타이머 중지 (애니메이션이 자체 타이머 시작)
         }
     }
 
     // MARK: - Hand Animation
 
     private func moveHands(to position: Int) {
-        // 시침 + 분침 동시에 이동
-        bleManager?.sendCommand(name: "stepper_goto", value: [0, position])
-        bleManager?.sendCommand(name: "stepper_goto", value: [1, position])
+        // 시침 + 분침 동시에 이동 — withoutResponse로 ACK 대기 없이 연속 전송
+        bleManager?.sendCommandFast(name: "stepper_goto", value: [0, position])
+        bleManager?.sendCommandFast(name: "stepper_goto", value: [1, position])
     }
 
     private func animateHands(to target: Int, completion: @escaping () -> Void) {
@@ -248,8 +271,10 @@ final class ButtonActionManager: ObservableObject {
 
         func nextStep() {
             if currentStep > target {
-                // 최종 위치에서 3초 유지 후 datetime으로 복귀
+                // 최종 위치를 타이머로 3초간 유지 후 datetime 복귀
+                startHandHoldTimer(position: target)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
+                    self?.stopHandHoldTimer()
                     self?.sendCurrentDatetime()
                     completion()
                 }

@@ -178,6 +178,19 @@ final class BLEManager: NSObject, ObservableObject {
         peripheral?.writeValue(data, for: char, type: .withResponse)
     }
 
+    /// ACK 대기 없이 빠르게 전송 — 연속 명령(시침+분침 동시 이동 등)에 사용
+    func sendCommandFast(name: String, value: Any) {
+        guard let char = commandChar,
+              let cmdId = commandMap[name] else {
+            log("sendCommandFast 실패: \(name)")
+            return
+        }
+        let data = protocol_.encode(commandId: cmdId, value: value)
+        let hex = data.map { String(format: "%02X", $0) }.joined()
+        log("CMD(fast): \(name)(\(cmdId)) → \(hex)")
+        peripheral?.writeValue(data, for: char, type: .withoutResponse)
+    }
+
     func sendRawCommand(name: String, data payload: Data) {
         guard let char = commandChar,
               let cmdId = commandMap[name] else {
