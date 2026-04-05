@@ -94,25 +94,31 @@ struct NotificationMappingView: View {
                         ble.sendCommand(name: "alert_assign", value: [1: 3] as [Int: Int])
                         ble.log("alert_assign({1: 3})")
                     }
-                    Text("ancs_filter idx 테스트:")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    ForEach([1, 2, 3, 5, 7, 10], id: \.self) { idx in
-                        Button("idx=\(idx), 전체알림, vib=2") {
-                            // 먼저 삭제
-                            for i in 0...12 {
-                                ble.sendCommand(name: "ancs_filter", value: [i])
-                            }
-                            // 1.5초 후 설정
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                                ble.sendCommand(name: "ancs_filter", value: [
-                                    idx, AncsCategory.allBitmask, 255, "", 2
-                                ] as [Any])
-                                ble.log("ancs_filter[\(idx)]: all, vib=2")
+                    Button("공식 앱 설정 전체 읽기") {
+                        // alert_assign, config_base, settings, ancs_filter 읽기
+                        let cmds = ["alert_assign", "config_base", "settings", "ancs_filter", "complications"]
+                        var delay: Double = 0
+                        for name in cmds {
+                            if let cmdId = ble.commandMap[name] {
+                                for batch in 0...2 {
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                                        let data = KronabyProtocol().encodeArray([cmdId, batch])
+                                        if let c = ble.commandChar {
+                                            ble.peripheral?.writeValue(data, for: c, type: .withResponse)
+                                            ble.log("\(name)[\(batch)] 요청")
+                                        }
+                                    }
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + delay + 0.8) {
+                                        if let p = ble.peripheral, let c = ble.commandChar {
+                                            p.readValue(for: c)
+                                        }
+                                    }
+                                    delay += 1.5
+                                }
                             }
                         }
-                        .font(.caption)
                     }
+                    .font(.caption)
                 }
             }
             .navigationTitle("알림 매핑")

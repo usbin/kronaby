@@ -22,30 +22,9 @@ struct KeepnabyApp: App {
                     locationRecorder.onRecorded = { [weak bleManager] in
                         bleManager?.sendCommand(name: "vibrator_start", value: [150])
                     }
-                    // 연결 완료 시 모든 설정 자동 재전송
-                    bleManager.onConnected = { [weak bleManager, weak notificationMappingManager] in
-                        guard let ble = bleManager else { return }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                            // 1. 크라운 설정
-                            let crownMode = UserDefaults.standard.integer(forKey: "kronaby_crown_mode")
-                            ble.sendCommand(name: "complications", value: [5, crownMode, 18])
-                            ble.log("재전송: 크라운 mode=\(crownMode)")
-
-                            // 2. 걸음수 목표
-                            let stepGoal = UserDefaults.standard.integer(forKey: "kronaby_step_goal_v2")
-                            if stepGoal > 0 {
-                                ble.sendCommand(name: "steps_target", value: stepGoal)
-                                ble.sendCommand(name: "config_base", value: [1, 1])
-                                ble.log("재전송: steps_target=\(stepGoal)")
-                            }
-
-                            // 3. ANCS 필터 + alert_assign (Array 형식으로 통합)
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                // applyToWatch가 alert_assign Array + ancs_filter를 순서대로 전송
-                                notificationMappingManager?.applyToWatch(ble: ble)
-                                ble.log("재전송: alert_assign + ANCS 필터")
-                            }
-                        }
+                    // 연결 완료 시 자동 재전송 — 디버그 중 임시 비활성화
+                    bleManager.onConnected = { [weak bleManager] in
+                        bleManager?.log("연결됨 — 재전송 비활성화 (디버그 중)")
                     }
                     UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
                 }
