@@ -39,19 +39,11 @@ struct KeepnabyApp: App {
                                 ble.log("재전송: steps_target=\(stepGoal)")
                             }
 
-                            // 3. ANCS 알림 필터 (alert_assign 없이)
+                            // 3. ANCS 필터 + alert_assign (Array 형식으로 통합)
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                // applyToWatch가 alert_assign Array + ancs_filter를 순서대로 전송
                                 notificationMappingManager?.applyToWatch(ble: ble)
-                                ble.log("재전송: ANCS 필터")
-
-                                // 4. 알람 슬롯만 설정 (ANCS 필터 후)
-                                let alarmSlot = UserDefaults.standard.integer(forKey: "kronaby_alarm_slot")
-                                if alarmSlot > 0 {
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                                        ble.sendCommand(name: "alert_assign", value: [alarmSlot: 1] as [Int: Int])
-                                        ble.log("재전송: alert_assign slot=\(alarmSlot)")
-                                    }
-                                }
+                                ble.log("재전송: alert_assign + ANCS 필터")
                             }
                         }
                     }

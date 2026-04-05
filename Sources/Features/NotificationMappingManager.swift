@@ -111,7 +111,18 @@ final class NotificationMappingManager: ObservableObject {
     func applyToWatch(ble: BLEManager) {
         var delay: Double = 0
 
-        // 1. 기존 필터 삭제 (0~12, 이전 동작하던 버전과 동일)
+        // 1. alert_assign — Array 형식 [pos1, pos2, pos3]
+        // 0 = ANCS notification, 1 = silent alarm
+        var assignArray = [0, 0, 0]
+        let alarmSlot = UserDefaults.standard.integer(forKey: "kronaby_alarm_slot")
+        if alarmSlot >= 1 && alarmSlot <= 3 {
+            assignArray[alarmSlot - 1] = 1
+        }
+        ble.sendCommand(name: "alert_assign", value: assignArray)
+        ble.log("alert_assign(\(assignArray))")
+        delay += 0.5
+
+        // 2. 기존 필터 삭제 (0~12)
         for i in 0...12 {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 ble.sendCommand(name: "ancs_filter", value: [i])
@@ -120,7 +131,7 @@ final class NotificationMappingManager: ObservableObject {
         }
         ble.log("필터 삭제 (0~12)")
 
-        // 2. 활성 슬롯 전송 (삭제 완료 후)
+        // 3. 활성 슬롯 전송
         delay += 0.5
         for slot in slots where slot.enabled && !slot.categories.isEmpty {
             let idx = slot.id

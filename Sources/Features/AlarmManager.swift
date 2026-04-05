@@ -90,18 +90,18 @@ final class AlarmManager: ObservableObject {
             .filter { $0.enabled }
             .map { [$0.hour, $0.minute, Int($0.configByte)] }
 
-        // 1. 알람 슬롯만 설정 (다른 위치는 건드리지 않음)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            if !activeAlarms.isEmpty {
-                ble.sendCommand(name: "alert_assign", value: [self.alarmSlot: 1] as [Int: Int])
-                ble.log("alert_assign({\(self.alarmSlot): 1})")
-            }
+        // 1. alert_assign — Array 형식 [pos1, pos2, pos3]
+        var assignArray = [0, 0, 0]
+        if !activeAlarms.isEmpty && self.alarmSlot >= 1 && self.alarmSlot <= 3 {
+            assignArray[self.alarmSlot - 1] = 1
+        }
+        ble.sendCommand(name: "alert_assign", value: assignArray)
+        ble.log("alert_assign(\(assignArray))")
 
-            // 3. 알람 데이터 전송
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                ble.sendCommand(name: "alarm", value: activeAlarms)
-                ble.log("alarm 전송: \(activeAlarms) → 위치 \(self.alarmSlot)")
-            }
+        // 2. 알람 데이터 전송
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            ble.sendCommand(name: "alarm", value: activeAlarms)
+            ble.log("alarm 전송: \(activeAlarms) → 위치 \(self.alarmSlot)")
         }
 
         UserDefaults.standard.set(alarmSlot, forKey: Self.slotKey)
