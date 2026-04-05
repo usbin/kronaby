@@ -51,6 +51,9 @@ enum MsgPackEncoder {
         case .int(let i):
             if i >= 0 && i <= 127 {
                 data.append(UInt8(i))
+            } else if i >= 128 && i <= 255 {
+                data.append(0xCC)  // uint8
+                data.append(UInt8(i))
             } else if i >= -32 && i < 0 {
                 data.append(UInt8(bitPattern: Int8(i)))
             } else if i >= Int64(Int8.min) && i <= Int64(Int8.max) {

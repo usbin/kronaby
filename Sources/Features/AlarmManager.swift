@@ -18,15 +18,28 @@ struct WatchAlarm: Codable, Identifiable, Equatable {
         return days.sorted().map { names[$0] }.joined(separator: " ")
     }
 
-    // 알람 config byte (실기기 검증 완료)
+    // 알람 config byte
     // bit 0 = 1회성 알람 (요일 없을 때)
-    // bits 1-7 = ISO 요일 (월=bit1, 화=bit2, ..., 일=bit7)
+    // bits 1-7 = Kronaby 요일 순서 (화=bit1, 수=bit2, 목=bit3, 금=bit4, 토=bit5, 일=bit6, 월=bit7)
+    // ISO day → Kronaby bitmask bit: 월→7, 화→1, 수→2, 목→3, 금→4, 토→5, 일→6
+    private static let dayToBit: [Int: Int] = [
+        1: 7,  // 월 → bit 7
+        2: 1,  // 화 → bit 1
+        3: 2,  // 수 → bit 2
+        4: 3,  // 목 → bit 3
+        5: 4,  // 금 → bit 4
+        6: 5,  // 토 → bit 5
+        7: 6,  // 일 → bit 6
+    ]
+
     var configByte: UInt8 {
         if !enabled { return 0 }
         if days.isEmpty { return 1 }  // 1회성
         var mask = 0
         for day in days {
-            mask |= (1 << day)  // ISO: 월=1→bit1, 화=2→bit2, ..., 일=7→bit7
+            if let bit = Self.dayToBit[day] {
+                mask |= (1 << bit)
+            }
         }
         return UInt8(mask & 0xFF)
     }
@@ -91,9 +104,19 @@ final class AlarmManager: ObservableObject {
             .map { [$0.hour, $0.minute, Int($0.configByte)] }
 
         // 1. alert_assign — Array 형식 [pos1, pos2, pos3]
+        // ANCS 활성 슬롯도 함께 포함해야 덮어쓰지 않음
         var assignArray = [0, 0, 0]
         if !activeAlarms.isEmpty && self.alarmSlot >= 1 && self.alarmSlot <= 3 {
             assignArray[self.alarmSlot - 1] = 1
+        }
+        // ANCS 슬롯 정보 읽어서 병합
+        if let data = UserDefaults.standard.data(forKey: "kronaby_ancs_slots_v5"),
+           let slots = try? JSONDecoder().decode([NotificationSlot].self, from: data) {
+            for slot in slots where slot.enabled && !slot.categories.isEmpty {
+                if slot.id >= 1 && slot.id <= 3 {
+                    assignArray[slot.id - 1] = 1
+                }
+            }
         }
         ble.sendCommand(name: "alert_assign", value: assignArray)
         ble.log("alert_assign(\(assignArray))")
