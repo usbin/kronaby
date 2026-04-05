@@ -94,6 +94,11 @@ struct NotificationMappingView: View {
                         ble.sendCommand(name: "alert_assign", value: [1: 3] as [Int: Int])
                         ble.log("alert_assign({1: 3})")
                     }
+                    Button("config_base([10,1,1,1]) 전송") {
+                        ble.sendCommand(name: "config_base", value: [10, 1, 1, 1])
+                        ble.log("config_base([10, 1, 1, 1]) — 공식 앱 동일")
+                    }
+                    .font(.caption)
                     Button("공식 앱 설정 전체 읽기") {
                         // alert_assign, config_base, settings, ancs_filter 읽기
                         let cmds = ["alert_assign", "config_base", "settings", "ancs_filter", "complications"]

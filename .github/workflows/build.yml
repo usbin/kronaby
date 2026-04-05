@@ -33,6 +33,9 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: Convert app icon to RGB (actool requires non-indexed PNG)
+        run: sips -s format png -s formatOptions best Sources/Assets.xcassets/AppIcon.appiconset/icon.png --out Sources/Assets.xcassets/AppIcon.appiconset/icon.png
+
       - name: Generate Xcode project
         run: xcodegen generate
 
