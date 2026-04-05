@@ -78,8 +78,6 @@ final class ButtonActionManager: ObservableObject {
     @Published var extendedMappings: [ButtonAction] = Array(repeating: ButtonAction(), count: 16)
     @Published var isExtendedMode = false
     @Published var extendedBits: [Int] = []  // 입력 중인 비트
-    private var handHoldTimer: Timer?         // 바늘 위치 유지 타이머
-    private var handHoldPosition: Int = 0     // 유지할 바늘 위치
 
     let findMyPhone = FindMyPhone()
     @Published var isFindMyPhonePlaying = false
@@ -183,11 +181,10 @@ final class ButtonActionManager: ObservableObject {
     private func cancelExtendedMode() {
         isExtendedMode = false
         extendedBits = []
-        stopHandHoldTimer()
         // 진동 3회 — 취소
         bleManager?.sendCommand(name: "vibrator_start", value: [150, 100, 150, 100, 150])
-        // datetime으로 바늘 즉시 복귀
-        sendCurrentDatetime()
+        // 캘리브레이션 모드 종료 → datetime 복귀
+        exitRecalibrateAndSyncTime()
         bleManager?.log("확장입력모드 취소")
     }
 
@@ -196,28 +193,20 @@ final class ButtonActionManager: ObservableObject {
         extendedBits = []
         // 진동 1회
         bleManager?.sendCommand(name: "vibrator_start", value: [150])
-        // 시침+분침 → 55분 위치 (11시 방향) + 주기적 재전송으로 위치 유지
-        moveHands(to: 55)
-        startHandHoldTimer(position: 55)
-        bleManager?.log("확장입력모드 시작 → 11시")
-    }
-
-    /// stepper_goto를 주기적으로 재전송하여 펌웨어의 datetime 자동 복귀를 억제
-    private func startHandHoldTimer(position: Int) {
-        stopHandHoldTimer()
-        handHoldPosition = position
-        handHoldTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
-            guard let self, self.isExtendedMode else {
-                self?.stopHandHoldTimer()
-                return
-            }
-            self.moveHands(to: self.handHoldPosition)
+        // 캘리브레이션 모드 진입 → 펌웨어가 datetime으로 자동 복귀하지 않음
+        bleManager?.sendCommand(name: "recalibrate", value: true)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            self?.moveHands(to: 55)
         }
+        bleManager?.log("확장입력모드 시작 → 11시 (recalibrate)")
     }
 
-    private func stopHandHoldTimer() {
-        handHoldTimer?.invalidate()
-        handHoldTimer = nil
+    /// recalibrate(false) 후 datetime 전송 — 공식 앱과 동일한 플로우
+    private func exitRecalibrateAndSyncTime() {
+        bleManager?.sendCommand(name: "recalibrate", value: false)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            self?.sendCurrentDatetime()
+        }
     }
 
     private func handleExtendedInput(event: Int) {
@@ -252,7 +241,6 @@ final class ButtonActionManager: ObservableObject {
 
             isExtendedMode = false
             extendedBits = []
-            stopHandHoldTimer()  // 입력 대기 타이머 중지 (애니메이션이 자체 타이머 시작)
         }
     }
 
@@ -271,12 +259,13 @@ final class ButtonActionManager: ObservableObject {
 
         func nextStep() {
             if currentStep > target {
-                // 최종 위치를 타이머로 3초간 유지 후 datetime 복귀
-                startHandHoldTimer(position: target)
+                // 최종 위치에서 3초 유지 후 recalibrate 종료 → datetime 복귀
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
-                    self?.stopHandHoldTimer()
-                    self?.sendCurrentDatetime()
-                    completion()
+                    self?.exitRecalibrateAndSyncTime()
+                    // datetime 전송 후 completion 호출
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        completion()
+                    }
                 }
                 return
             }

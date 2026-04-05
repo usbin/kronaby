@@ -111,7 +111,38 @@ struct NotificationMappingView: View {
                         ble.log("alert_assign([0, 0, 0]) Array")
                     }
                     .font(.caption)
-                    Button("공식 앱 설정 전체 읽기") {
+                    Button("74개 명령 전체 덤프") {
+                        let sorted = ble.commandMap.sorted(by: { $0.value < $1.value })
+                        var delay: Double = 0
+                        for (name, cmdId) in sorted {
+                            // 디버그/상태 명령은 스킵
+                            if name.hasPrefix("debug_") || name.hasPrefix("id_") || name.hasPrefix("status_")
+                                || name.hasPrefix("map_") || name == "test" || name == "test_coil"
+                                || name == "test_fcte" || name == "crash" || name == "dump_uart"
+                                || name == "factory_reset" || name == "forget_device"
+                                || name == "dfu_ready" || name == "remove_bond"
+                                || name == "upgrade_occurred" || name == "peek_poke"
+                                || name == "disp_img" || name == "vbat_sim"
+                                || name == "map_cmd" { continue }
+
+                            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                                let data = KronabyProtocol().encodeArray([cmdId, 0])
+                                if let c = ble.commandChar {
+                                    ble.peripheral?.writeValue(data, for: c, type: .withResponse)
+                                }
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + delay + 0.8) {
+                                if let p = ble.peripheral, let c = ble.commandChar {
+                                    p.readValue(for: c)
+                                    ble.log("READ \(name)(\(cmdId))")
+                                }
+                            }
+                            delay += 1.5
+                        }
+                        ble.log("전체 덤프 시작 — \(Int(delay))초 소요 예상")
+                    }
+                    .font(.caption)
+                    Button("공식 앱 설정 전체 읽기 (간략)") {
                         // alert_assign, config_base, settings, ancs_filter 읽기
                         let cmds = ["alert_assign", "config_base", "settings", "ancs_filter", "complications"]
                         var delay: Double = 0
