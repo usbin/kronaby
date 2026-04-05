@@ -253,8 +253,7 @@ final class ButtonActionManager: ObservableObject {
     }
 
     private func animateHands(to target: Int, completion: @escaping () -> Void) {
-        // 0분 위치로 먼저 이동 후, 1분씩 째깍째깍 target까지
-        moveHands(to: 0)
+        // 1분부터 째깍째깍 target까지 (position 0은 stepper에서 무시됨)
         var currentStep = 1
 
         func nextStep() {
@@ -277,10 +276,8 @@ final class ButtonActionManager: ObservableObject {
             }
         }
 
-        // 0분 도착 후 0.5초 대기 → 째깍 시작
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            nextStep()
-        }
+        // 55분(11시)에서 바로 1분부터 째깍 시작
+        nextStep()
     }
 
     private func sendCurrentDatetime() {
