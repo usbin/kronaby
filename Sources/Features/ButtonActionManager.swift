@@ -194,8 +194,9 @@ final class ButtonActionManager: ObservableObject {
         // 진동 1회
         bleManager?.sendCommand(name: "vibrator_start", value: [150])
         // 캘리브레이션 모드 진입 → 펌웨어가 datetime으로 자동 복귀하지 않음
+        // recalibrate(true) 시 펌웨어가 바늘을 0(12시)으로 이동 → 안정 후 55로 전송
         bleManager?.sendCommand(name: "recalibrate", value: true)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
             self?.moveHands(to: 55)
         }
         bleManager?.log("확장입력모드 시작 → 11시 (recalibrate)")
@@ -276,8 +277,10 @@ final class ButtonActionManager: ObservableObject {
             }
         }
 
-        // 55분(11시)에서 바로 1분부터 째깍 시작
-        nextStep()
+        // 55분(11시)에서 1분으로 이동하는 물리적 시간 확보 후 째깍 시작
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            nextStep()
+        }
     }
 
     private func sendCurrentDatetime() {
