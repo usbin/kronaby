@@ -3,6 +3,7 @@ import SwiftUI
 struct ButtonMappingView: View {
     @EnvironmentObject var actionManager: ButtonActionManager
     @State private var editingKey: ButtonKey?
+    @State private var editingExtendedIndex: Int?
 
     var body: some View {
         NavigationStack {
@@ -31,15 +32,51 @@ struct ButtonMappingView: View {
                     ForEach(ButtonActionManager.allButtons.filter { $0.button == 2 }, id: \.storageKey) { key in
                         buttonRow(key: key)
                     }
+                    // 하단 길게 누름 — 확장입력모드 (고정)
+                    HStack {
+                        Text("길게 누름")
+                        Spacer()
+                        Text("확장입력모드 (고정)")
+                            .foregroundStyle(.orange)
+                    }
                 }
 
-                // Crown (fixed)
-                Section("크라운") {
-                    HStack {
-                        Text("3초 홀드")
-                        Spacer()
-                        Text("폰 찾기 (고정)")
-                            .foregroundStyle(.secondary)
+                // 확장입력모드 위치기록 안내
+                Section {
+                    Text("위치 기록 사용 시: 설정 → 개인정보 보호 및 보안 → 위치 서비스 → Keepnaby → '항상'으로 변경해주세요.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                // 확장입력모드 할당 (0~15)
+                Section("확장입력모드 할당 (0~15)") {
+                    Text("하단 길게 → 진동 1회 → 하단 1회=0, 2회=1\n4자리 입력 → 진동 2회 → 명령 실행")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    ForEach(0..<16, id: \.self) { index in
+                        let action = actionManager.extendedMappings[index]
+                        let binary = String(index, radix: 2).leftPadded(to: 4)
+                        Button {
+                            editingExtendedIndex = index
+                        } label: {
+                            HStack {
+                                Text("\(index)")
+                                    .font(.system(.body, design: .monospaced))
+                                    .frame(width: 25, alignment: .trailing)
+                                Text("(\(binary))")
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 50)
+                                Spacer()
+                                Text(actionSummary(action))
+                                    .foregroundStyle(.secondary)
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                        .foregroundStyle(.primary)
                     }
                 }
             }
@@ -47,6 +84,10 @@ struct ButtonMappingView: View {
             .navigationBarTitleDisplayMode(.inline)
             .sheet(item: $editingKey) { key in
                 ActionEditView(key: key)
+                    .environmentObject(actionManager)
+            }
+            .sheet(item: $editingExtendedIndex) { index in
+                ExtendedActionEditView(index: index)
                     .environmentObject(actionManager)
             }
         }
@@ -89,7 +130,17 @@ extension ButtonKey: Identifiable {
     var id: String { storageKey }
 }
 
-// MARK: - Action Edit
+extension Int: Identifiable {
+    public var id: Int { self }
+}
+
+extension String {
+    func leftPadded(to length: Int, with char: Character = "0") -> String {
+        String(repeating: char, count: max(0, length - count)) + self
+    }
+}
+
+// MARK: - Action Edit (일반 버튼)
 
 struct ActionEditView: View {
     let key: ButtonKey
@@ -101,49 +152,9 @@ struct ActionEditView: View {
         NavigationStack {
             Form {
                 Section("\(key.displayButton) — \(key.displayEvent)") {
-                    Picker("동작", selection: $action.type) {
-                        Text("없음").tag(ButtonActionType.none)
-                        Section("기본") {
-                            Text("폰 찾기").tag(ButtonActionType.findPhone)
-                        }
-                        Section("음악") {
-                            Text("재생/일시정지").tag(ButtonActionType.musicPlayPause)
-                            Text("다음 곡").tag(ButtonActionType.musicNext)
-                            Text("이전 곡").tag(ButtonActionType.musicPrevious)
-                        }
-                        Section("위치") {
-                            Text("위치 기록").tag(ButtonActionType.recordLocation)
-                        }
-                        Section("고급") {
-                            Text("IFTTT Webhook").tag(ButtonActionType.iftttWebhook)
-                            Text("단축어 실행 (앱 열림)").tag(ButtonActionType.shortcut)
-                            Text("URL 요청").tag(ButtonActionType.urlRequest)
-                        }
-                    }
+                    actionPicker(selection: $action)
                 }
-
-                switch action.type {
-                case .iftttWebhook:
-                    Section("IFTTT 이벤트") {
-                        TextField("이벤트 이름", text: $action.iftttEventName)
-                            .autocorrectionDisabled()
-                            .textInputAutocapitalization(.never)
-                    }
-                case .shortcut:
-                    Section("단축어") {
-                        TextField("단축어 이름 (정확히 입력)", text: $action.shortcutName)
-                            .autocorrectionDisabled()
-                    }
-                case .urlRequest:
-                    Section("URL") {
-                        TextField("https://...", text: $action.urlString)
-                            .autocorrectionDisabled()
-                            .textInputAutocapitalization(.never)
-                            .keyboardType(.URL)
-                    }
-                default:
-                    EmptyView()
-                }
+                actionDetail(action: $action)
             }
             .navigationTitle("동작 설정")
             .navigationBarTitleDisplayMode(.inline)
@@ -158,5 +169,90 @@ struct ActionEditView: View {
                 action = actionManager.getAction(for: key)
             }
         }
+    }
+}
+
+// MARK: - Action Edit (확장입력모드)
+
+struct ExtendedActionEditView: View {
+    let index: Int
+    @EnvironmentObject var actionManager: ButtonActionManager
+    @Environment(\.dismiss) var dismiss
+    @State private var action: ButtonAction = ButtonAction()
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                let binary = String(index, radix: 2).leftPadded(to: 4)
+                Section("확장입력 \(index) (\(binary))") {
+                    actionPicker(selection: $action)
+                }
+                actionDetail(action: $action)
+            }
+            .navigationTitle("확장입력 \(index)")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarItems(
+                leading: Button("취소") { dismiss() },
+                trailing: Button("저장") {
+                    actionManager.extendedMappings[index] = action
+                    actionManager.saveExtended()
+                    dismiss()
+                }
+            )
+            .onAppear {
+                action = actionManager.extendedMappings[index]
+            }
+        }
+    }
+}
+
+// MARK: - Shared Picker & Detail
+
+@ViewBuilder
+func actionPicker(selection: Binding<ButtonAction>) -> some View {
+    Picker("동작", selection: selection.type) {
+        Text("없음").tag(ButtonActionType.none)
+        Section("기본") {
+            Text("폰 찾기").tag(ButtonActionType.findPhone)
+        }
+        Section("음악") {
+            Text("재생/일시정지").tag(ButtonActionType.musicPlayPause)
+            Text("다음 곡").tag(ButtonActionType.musicNext)
+            Text("이전 곡").tag(ButtonActionType.musicPrevious)
+        }
+        Section("위치") {
+            Text("위치 기록").tag(ButtonActionType.recordLocation)
+        }
+        Section("고급") {
+            Text("IFTTT Webhook").tag(ButtonActionType.iftttWebhook)
+            Text("단축어 실행 (앱 열림)").tag(ButtonActionType.shortcut)
+            Text("URL 요청").tag(ButtonActionType.urlRequest)
+        }
+    }
+}
+
+@ViewBuilder
+func actionDetail(action: Binding<ButtonAction>) -> some View {
+    switch action.wrappedValue.type {
+    case .iftttWebhook:
+        Section("IFTTT 이벤트") {
+            TextField("이벤트 이름", text: action.iftttEventName)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+        }
+    case .shortcut:
+        Section("단축어") {
+            TextField("단축어 이름 (정확히 입력)", text: action.shortcutName)
+                .autocorrectionDisabled()
+        }
+    case .urlRequest:
+        Section("URL") {
+            TextField("https://...", text: action.urlString)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .keyboardType(.URL)
+        }
+    default:
+        EmptyView()
     }
 }

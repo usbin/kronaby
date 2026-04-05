@@ -170,12 +170,87 @@ struct WatchSettingsView: View {
                         ble.log("steps_target: \(stepGoal)")
                     }
                 }
+                // MARK: - stepper_goto 테스트
+                Section("stepper_goto 테스트") {
+                    Text("모터 0=시침, 1=분침 (추정)\n위치값과 시계 눈금의 매핑을 확인하세요.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    HStack {
+                        Text("모터")
+                        Picker("", selection: $testMotor) {
+                            Text("0 (시침?)").tag(0)
+                            Text("1 (분침?)").tag(1)
+                        }
+                        .pickerStyle(.segmented)
+                    }
+
+                    HStack {
+                        Text("위치: \(testPosition)")
+                        Slider(value: Binding(
+                            get: { Double(testPosition) },
+                            set: { testPosition = Int($0) }
+                        ), in: 0...180, step: 1)
+                    }
+
+                    HStack(spacing: 8) {
+                        Button("이동") {
+                            ble.sendCommand(name: "stepper_goto", value: [testMotor, testPosition])
+                            ble.log("stepper_goto([\(testMotor), \(testPosition)])")
+                        }
+                        Button("0") {
+                            testPosition = 0
+                            ble.sendCommand(name: "stepper_goto", value: [testMotor, 0])
+                            ble.log("stepper_goto([\(testMotor), 0])")
+                        }
+                        Button("15") {
+                            testPosition = 15
+                            ble.sendCommand(name: "stepper_goto", value: [testMotor, 15])
+                            ble.log("stepper_goto([\(testMotor), 15])")
+                        }
+                        Button("30") {
+                            testPosition = 30
+                            ble.sendCommand(name: "stepper_goto", value: [testMotor, 30])
+                            ble.log("stepper_goto([\(testMotor), 30])")
+                        }
+                        Button("60") {
+                            testPosition = 60
+                            ble.sendCommand(name: "stepper_goto", value: [testMotor, 60])
+                            ble.log("stepper_goto([\(testMotor), 60])")
+                        }
+                    }
+                    .font(.caption)
+
+                    Button("datetime로 복귀") {
+                        let now = Date()
+                        var cal = Calendar.current
+                        cal.timeZone = .current
+                        let c = cal.dateComponents([.year, .month, .day, .hour, .minute, .second, .weekday], from: now)
+                        let kronabyDay: Int
+                        switch c.weekday! {
+                        case 1: kronabyDay = 5
+                        case 2: kronabyDay = 6
+                        case 3: kronabyDay = 0
+                        case 4: kronabyDay = 1
+                        case 5: kronabyDay = 2
+                        case 6: kronabyDay = 3
+                        case 7: kronabyDay = 4
+                        default: kronabyDay = 0
+                        }
+                        ble.sendCommand(name: "datetime", value: [c.year!, c.month!, c.day!, c.hour!, c.minute!, c.second!, kronabyDay])
+                        ble.log("datetime 복귀")
+                    }
+                    .font(.caption)
+                }
             }
             .navigationTitle("시계 설정")
             .navigationBarTitleDisplayMode(.inline)
             .onAppear { loadSettings() }
         }
     }
+
+    @State private var testMotor = 0
+    @State private var testPosition = 0
 
     // MARK: - Helpers
 

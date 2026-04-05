@@ -112,17 +112,55 @@ final class LocationRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
 
     // MARK: - Map
 
+    enum MapApp: String, CaseIterable, Identifiable {
+        case kakao = "kakao"
+        case naver = "naver"
+        case google = "google"
+        case apple = "apple"
+
+        var id: String { rawValue }
+        var displayName: String {
+            switch self {
+            case .kakao: return "카카오맵"
+            case .naver: return "네이버지도"
+            case .google: return "구글맵"
+            case .apple: return "기본 지도"
+            }
+        }
+    }
+
+    @Published var preferredMap: MapApp = {
+        let raw = UserDefaults.standard.string(forKey: "kronaby_preferred_map") ?? "kakao"
+        return MapApp(rawValue: raw) ?? .kakao
+    }()
+
+    func setPreferredMap(_ app: MapApp) {
+        preferredMap = app
+        UserDefaults.standard.set(app.rawValue, forKey: "kronaby_preferred_map")
+    }
+
     func openInMap(_ location: SavedLocation) {
         let lat = location.latitude
         let lon = location.longitude
+        let q = location.displayName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "Pin"
 
-        if let kakao = URL(string: "kakaomap://look?p=\(lat),\(lon)"),
-           UIApplication.shared.canOpenURL(kakao) {
-            UIApplication.shared.open(kakao)
-            return
+        var url: URL?
+        switch preferredMap {
+        case .kakao:
+            url = URL(string: "kakaomap://look?p=\(lat),\(lon)")
+        case .naver:
+            url = URL(string: "nmap://place?lat=\(lat)&lng=\(lon)&name=\(q)&appname=com.usbin.keepnaby")
+        case .google:
+            url = URL(string: "comgooglemaps://?q=\(lat),\(lon)")
+        case .apple:
+            url = URL(string: "maps://?ll=\(lat),\(lon)&q=\(q)")
         }
 
-        let q = location.displayName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "Pin"
+        if let url, UIApplication.shared.canOpenURL(url) {
+            UIApplication.shared.open(url)
+            return
+        }
+        // Fallback: Apple Maps
         if let apple = URL(string: "maps://?ll=\(lat),\(lon)&q=\(q)") {
             UIApplication.shared.open(apple)
         }

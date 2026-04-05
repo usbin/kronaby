@@ -8,8 +8,22 @@ struct LocationHistoryView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
+            VStack(spacing: 0) {
+                // 지도 앱 선택
+                Picker("지도 앱", selection: Binding(
+                    get: { recorder.preferredMap },
+                    set: { recorder.setPreferredMap($0) }
+                )) {
+                    ForEach(LocationRecorder.MapApp.allCases) { app in
+                        Text(app.displayName).tag(app)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+
                 if recorder.savedLocations.isEmpty {
+                    Spacer()
                     VStack(spacing: 12) {
                         Image(systemName: "mappin.slash")
                             .font(.largeTitle)
@@ -17,6 +31,7 @@ struct LocationHistoryView: View {
                         Text("저장된 위치가 없습니다")
                             .foregroundStyle(.secondary)
                     }
+                    Spacer()
                 } else {
                     List(selection: $selection) {
                         ForEach(recorder.savedLocations) { loc in

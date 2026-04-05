@@ -48,6 +48,8 @@
     <key>LSApplicationQueriesSchemes</key>
     <array>
         <string>kakaomap</string>
+        <string>nmap</string>
+        <string>comgooglemaps</string>
     </array>
 
     <key>UISupportedInterfaceOrientations</key>

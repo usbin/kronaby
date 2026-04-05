@@ -18,6 +18,7 @@ struct KeepnabyApp: App {
                 .environmentObject(notificationMappingManager)
                 .onAppear {
                     actionManager.locationRecorder = locationRecorder
+                    actionManager.bleManager = bleManager
                     locationRecorder.onRecorded = { [weak bleManager] in
                         bleManager?.sendCommand(name: "vibrator_start", value: [150])
                     }
@@ -38,17 +39,22 @@ struct KeepnabyApp: App {
                                 ble.log("재전송: steps_target=\(stepGoal)")
                             }
 
-                            // 3. ANCS 알림 필터
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                                notificationMappingManager?.applyToWatch(ble: ble)
-                                ble.log("재전송: ANCS 필터")
-                            }
+                            // 3. alert_assign — 모든 위치를 알림(0)으로 초기화 후 알람 슬롯만 설정
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                for pos in 1...3 {
+                                    ble.sendCommand(name: "alert_assign", value: [pos: 0] as [Int: Int])
+                                }
+                                let alarmSlot = UserDefaults.standard.integer(forKey: "kronaby_alarm_slot")
+                                if alarmSlot > 0 {
+                                    ble.sendCommand(name: "alert_assign", value: [alarmSlot: 1] as [Int: Int])
+                                }
+                                ble.log("재전송: alert_assign (1~3→알림, \(alarmSlot)→알람)")
 
-                            // 4. 무음 알람 alert_assign
-                            let alarmSlot = UserDefaults.standard.integer(forKey: "kronaby_alarm_slot")
-                            if alarmSlot > 0 {
-                                ble.sendCommand(name: "alert_assign", value: [alarmSlot: 1] as [Int: Int])
-                                ble.log("재전송: alert_assign slot=\(alarmSlot)")
+                                // 4. ANCS 알림 필터 (alert_assign 완료 후)
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                                    notificationMappingManager?.applyToWatch(ble: ble)
+                                    ble.log("재전송: ANCS 필터")
+                                }
                             }
                         }
                     }
@@ -56,11 +62,9 @@ struct KeepnabyApp: App {
                 }
                 .onReceive(bleManager.$lastButtonEvent) { event in
                     guard let event = event else { return }
-                    if event.eventType == 11 {
-                        actionManager.handleFindMyPhone()
-                    } else {
-                        actionManager.handleButtonEvent(button: event.button, event: event.eventType)
-                    }
+                    // 크라운 3초 홀드(코드 11)는 Nord에서 미동작 — 무시
+                    if event.eventType == 11 { return }
+                    actionManager.handleButtonEvent(button: event.button, event: event.eventType)
                 }
         }
     }

@@ -74,19 +74,29 @@ final class ButtonActionManager: ObservableObject {
     @Published var mappings: [String: ButtonAction] = [:]
     @Published var iftttKey: String = ""
 
+    // 확장입력모드 (0~15)
+    @Published var extendedMappings: [ButtonAction] = Array(repeating: ButtonAction(), count: 16)
+    @Published var isExtendedMode = false
+    @Published var extendedBits: [Int] = []  // 입력 중인 비트
+
     private let findMyPhone = FindMyPhone()
     private let musicController = MusicController()
     var locationRecorder: LocationRecorder?
+    var bleManager: BLEManager?
 
     private static let mappingsKey = "button_mappings"
     private static let iftttKeyKey = "ifttt_webhook_key"
+    private static let extendedKey = "extended_mappings"
 
+    // 상단 전체 + 하단 1회/2회/3회/4회 (길게 누름 제외)
     static let allButtons: [ButtonKey] = {
         var keys: [ButtonKey] = []
-        for button in [0, 2] {
-            for event in [1, 3, 4, 5, 2] {
-                keys.append(ButtonKey(button: button, event: event))
-            }
+        for event in [1, 3, 4, 5, 2] {
+            keys.append(ButtonKey(button: 0, event: event))
+        }
+        // 하단: 길게 누름(2) 제외
+        for event in [1, 3, 4, 5] {
+            keys.append(ButtonKey(button: 2, event: event))
         }
         return keys
     }()
@@ -107,9 +117,29 @@ final class ButtonActionManager: ObservableObject {
     // MARK: - Execute
 
     func handleButtonEvent(button: Int, event: Int) {
+        // 하단 길게 누름 → 확장입력모드 진입 또는 취소
+        if button == 2 && event == 2 {
+            if isExtendedMode {
+                cancelExtendedMode()
+            } else {
+                startExtendedMode()
+            }
+            return
+        }
+
+        // 확장입력모드 중 — 하단 버튼만 입력 받음
+        if isExtendedMode && button == 2 {
+            handleExtendedInput(event: event)
+            return
+        }
+
+        // 일반 모드
         let key = ButtonKey(button: button, event: event)
         let action = getAction(for: key)
+        executeAction(action)
+    }
 
+    func executeAction(_ action: ButtonAction) {
         switch action.type {
         case .none:
             break
@@ -136,6 +166,57 @@ final class ButtonActionManager: ObservableObject {
         findMyPhone.play()
         DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
             self?.findMyPhone.stop()
+        }
+    }
+
+    // MARK: - Extended Input Mode (16종)
+
+    private func cancelExtendedMode() {
+        isExtendedMode = false
+        extendedBits = []
+        // 진동 3회 — 취소 알림
+        bleManager?.sendCommand(name: "vibrator_start", value: [150, 100, 150, 100, 150])
+        bleManager?.log("확장입력모드 취소")
+    }
+
+    private func startExtendedMode() {
+        isExtendedMode = true
+        extendedBits = []
+        // 진동 1회 — 입력 모드 시작 알림
+        bleManager?.sendCommand(name: "vibrator_start", value: [150])
+        bleManager?.log("확장입력모드 시작")
+    }
+
+    private func handleExtendedInput(event: Int) {
+        // 1회 클릭 = 0, 2회 클릭 = 1
+        let bit: Int
+        switch event {
+        case 1: bit = 0
+        case 3: bit = 1
+        default: return  // 다른 이벤트 무시
+        }
+
+        extendedBits.append(bit)
+        bleManager?.log("확장입력: bit \(extendedBits.count)/4 = \(bit)")
+
+        if extendedBits.count >= 4 {
+            // 4비트 완성 → 10진 변환
+            let value = extendedBits[0] * 8 + extendedBits[1] * 4 + extendedBits[2] * 2 + extendedBits[3]
+            // 진동 2회 — 입력 완료 알림
+            bleManager?.sendCommand(name: "vibrator_start", value: [150, 100, 150])
+            bleManager?.log("확장입력 완료: \(extendedBits) = \(value)")
+
+            // 명령 실행
+            if value < extendedMappings.count {
+                let action = extendedMappings[value]
+                if action.type != .none {
+                    executeAction(action)
+                    bleManager?.log("확장입력 실행: [\(value)] \(action.type.displayName)")
+                }
+            }
+
+            isExtendedMode = false
+            extendedBits = []
         }
     }
 
@@ -178,6 +259,9 @@ final class ButtonActionManager: ObservableObject {
             UserDefaults.standard.set(data, forKey: Self.mappingsKey)
         }
         UserDefaults.standard.set(iftttKey, forKey: Self.iftttKeyKey)
+        if let data = try? JSONEncoder().encode(extendedMappings) {
+            UserDefaults.standard.set(data, forKey: Self.extendedKey)
+        }
     }
 
     func load() {
@@ -186,5 +270,15 @@ final class ButtonActionManager: ObservableObject {
             mappings = decoded
         }
         iftttKey = UserDefaults.standard.string(forKey: Self.iftttKeyKey) ?? ""
+        if let data = UserDefaults.standard.data(forKey: Self.extendedKey),
+           let decoded = try? JSONDecoder().decode([ButtonAction].self, from: data) {
+            extendedMappings = decoded
+        }
+    }
+
+    func saveExtended() {
+        if let data = try? JSONEncoder().encode(extendedMappings) {
+            UserDefaults.standard.set(data, forKey: Self.extendedKey)
+        }
     }
 }
