@@ -187,19 +187,18 @@ struct WatchSettingsView: View {
 
                     Stepper("위치: \(testPosition)", value: $testPosition, in: 0...180)
 
-                    HStack(spacing: 8) {
-                        Button("이동") {
-                            ble.sendCommand(name: "stepper_goto", value: [testMotor, testPosition])
-                            ble.log("stepper_goto([\(testMotor), \(testPosition)])")
-                        }
-                        ForEach([0, 5, 10, 15, 30, 60], id: \.self) { val in
-                            Button("\(val)") {
-                                ble.sendCommand(name: "stepper_goto", value: [testMotor, val])
-                                ble.log("stepper_goto([\(testMotor), \(val)])")
-                            }
-                        }
+                    Button("이동 → 위치 \(testPosition)") {
+                        ble.sendCommand(name: "stepper_goto", value: [testMotor, testPosition])
+                        ble.log("stepper_goto([\(testMotor), \(testPosition)])")
                     }
                     .font(.caption)
+                    ForEach([0, 5, 10, 15, 30, 60], id: \.self) { val in
+                        Button("바로 이동 → \(val)") {
+                            ble.sendCommand(name: "stepper_goto", value: [testMotor, val])
+                            ble.log("stepper_goto([\(testMotor), \(val)])")
+                        }
+                        .font(.caption)
+                    }
 
                     Button("datetime로 복귀") {
                         let now = Date()
