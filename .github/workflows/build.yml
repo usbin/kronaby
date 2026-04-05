@@ -28,19 +28,13 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+        run: sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer
 
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: Convert app icon to RGB (actool requires non-indexed PNG)
-        run: sips -s format png -s formatOptions best Sources/Assets.xcassets/AppIcon.appiconset/icon.png --out Sources/Assets.xcassets/AppIcon.appiconset/icon.png
-
       - name: Generate Xcode project
         run: xcodegen generate
-
-      - name: Install iOS Simulator Runtime
-        run: xcodebuild -downloadPlatform iOS || true
 
       - name: Build for device (unsigned)
         run: |
