@@ -22,6 +22,15 @@ struct KeepnabyApp: App {
                     locationRecorder.onRecorded = { [weak bleManager] in
                         bleManager?.sendCommand(name: "vibrator_start", value: [150])
                     }
+                    // 10분 주기 keepAlive — ANCS 설정 재전송
+                    bleManager.onKeepAlive = { [weak bleManager, weak notificationMappingManager] in
+                        guard let ble = bleManager else { return }
+                        let crownMode = UserDefaults.standard.integer(forKey: "kronaby_crown_mode")
+                        ble.sendCommand(name: "complications", value: [5, crownMode, 18])
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            notificationMappingManager?.applyToWatch(ble: ble)
+                        }
+                    }
                     // 연결 완료 시 모든 설정 자동 재전송
                     bleManager.onConnected = { [weak bleManager, weak notificationMappingManager] in
                         guard let ble = bleManager else { return }

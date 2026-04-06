@@ -31,6 +31,8 @@ final class BLEManager: NSObject, ObservableObject {
     private var handshakeResponseCount = 0
     private var lastReadHex = ""
     private var readRetryCount = 0
+    private var keepAliveTimer: Timer?
+    var onKeepAlive: (() -> Void)?
 
     private static let savedPeripheralKey = "kronaby_peripheral_uuid"
     private static let savedCommandMapKey = "kronaby_command_map"
@@ -131,10 +133,37 @@ final class BLEManager: NSObject, ObservableObject {
 
     func disconnect() {
         intentionalDisconnect = true
+        stopKeepAliveTimer()
         if let peripheral = peripheral {
             centralManager.cancelPeripheralConnection(peripheral)
             log("연결 해제 요청")
         }
+    }
+
+    // MARK: - Keep-Alive Timer
+
+    private func startKeepAliveTimer() {
+        stopKeepAliveTimer()
+        // 10분마다 ANCS 설정 재전송 + notify 구독 재확인
+        keepAliveTimer = Timer.scheduledTimer(withTimeInterval: 600, repeats: true) { [weak self] _ in
+            guard let self, self.connectionState == .connected else { return }
+            self.log("keepAlive — ANCS 재설정 + notify 재구독")
+            // notify 특성 구독 재확인
+            if let p = self.peripheral {
+                if let cmd = self.commandChar {
+                    p.setNotifyValue(true, for: cmd)
+                }
+                if let ntf = self.notifyChar {
+                    p.setNotifyValue(true, for: ntf)
+                }
+            }
+            self.onKeepAlive?()
+        }
+    }
+
+    private func stopKeepAliveTimer() {
+        keepAliveTimer?.invalidate()
+        keepAliveTimer = nil
     }
 
     func forgetDevice() {
@@ -237,6 +266,7 @@ final class BLEManager: NSObject, ObservableObject {
 
         saveCommandMap()
         connectionState = .connected
+        startKeepAliveTimer()
         // 핸드셰이크 write/read 완료 후 충분히 대기 → onboarding_done 전송
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
             guard let self else { return }
@@ -335,6 +365,7 @@ extension BLEManager: CBCentralManagerDelegate {
         log("연결 끊김: \(error?.localizedDescription ?? "정상")")
         commandChar = nil
         notifyChar = nil
+        stopKeepAliveTimer()
 
         if !intentionalDisconnect, loadSavedCommandMap() != nil {
             // 의도치 않은 끊김 → 자동 재연결 + 알림
@@ -398,14 +429,18 @@ extension BLEManager: CBPeripheralDelegate {
             if let savedMap = loadSavedCommandMap(), !savedMap.isEmpty {
                 commandMap = savedMap
                 log("저장된 commandMap 복원 (\(savedMap.count)개)")
-                sendCommand(name: "onboarding_done", value: 1)
-                // 만보기 활성화
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                    self?.sendCommand(name: "config_base", value: [1, 1])
-                }
                 connectionState = .connected
-                log("재연결 완료!")
-                onConnected?()
+                startKeepAliveTimer()
+                // 초기 페어링과 동일하게 지연 후 명령 전송 — 펌웨어 안정화 대기
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                    guard let self, self.connectionState == .connected else { return }
+                    self.sendCommand(name: "onboarding_done", value: 1)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                        self?.sendCommand(name: "config_base", value: [1, 1])
+                    }
+                    self.log("재연결 완료!")
+                    self.onConnected?()
+                }
             } else {
                 performHandshake()
             }

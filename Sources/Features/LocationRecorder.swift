@@ -38,12 +38,21 @@ final class LocationRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
+        manager.allowsBackgroundLocationUpdates = true
+        manager.pausesLocationUpdatesAutomatically = false
         loadFromDisk()
         requestNotificationPermission()
     }
 
     func requestPermission() {
-        manager.requestWhenInUseAuthorization()
+        let status = manager.authorizationStatus
+        if status == .notDetermined {
+            // 먼저 WhenInUse → 이후 Always 순서로 요청 (iOS 권장 플로우)
+            manager.requestWhenInUseAuthorization()
+        } else if status == .authorizedWhenInUse {
+            // WhenInUse 권한만 있으면 Always로 업그레이드 요청
+            manager.requestAlwaysAuthorization()
+        }
     }
 
     func recordCurrentLocation() {
@@ -52,7 +61,6 @@ final class LocationRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
         guard now.timeIntervalSince(lastRecordTime) > 5.0, !isRecording else { return }
         lastRecordTime = now
         isRecording = true
-        requestPermission()
         manager.requestLocation()
     }
 
@@ -96,6 +104,13 @@ final class LocationRecorder: NSObject, ObservableObject, CLLocationManagerDeleg
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         isRecording = false
         sendNotification(title: "위치 기록 실패", body: error.localizedDescription)
+    }
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        if manager.authorizationStatus == .authorizedWhenInUse {
+            // WhenInUse 허용 후 Always로 업그레이드 요청
+            manager.requestAlwaysAuthorization()
+        }
     }
 
     // MARK: - Delete

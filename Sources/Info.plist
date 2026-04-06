@@ -33,11 +33,12 @@
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
     <string>백그라운드에서 시계 버튼으로 위치를 기록하려면 항상 위치 접근이 필요합니다.</string>
 
-    <!-- Background BLE -->
+    <!-- Background BLE + Location -->
     <key>UIBackgroundModes</key>
     <array>
         <string>bluetooth-central</string>
         <string>bluetooth-peripheral</string>
+        <string>location</string>
     </array>
 
     <!-- HealthKit (걸음수 읽기) -->
