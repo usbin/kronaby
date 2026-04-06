@@ -6,6 +6,9 @@ import UIKit
 enum ButtonActionType: String, Codable, CaseIterable {
     case none = "none"
     case findPhone = "find_phone"
+    case showDate = "show_date"
+    case showBattery = "show_battery"
+    case showSteps = "show_steps"
     case musicPlayPause = "music_play_pause"
     case musicNext = "music_next"
     case musicPrevious = "music_previous"
@@ -18,6 +21,9 @@ enum ButtonActionType: String, Codable, CaseIterable {
         switch self {
         case .none: return "없음"
         case .findPhone: return "폰 찾기"
+        case .showDate: return "오늘 날짜 확인"
+        case .showBattery: return "배터리 잔량 표시"
+        case .showSteps: return "걸음수 확인"
         case .musicPlayPause: return "음악: 재생/일시정지"
         case .musicNext: return "음악: 다음 곡"
         case .musicPrevious: return "음악: 이전 곡"
@@ -31,7 +37,7 @@ enum ButtonActionType: String, Codable, CaseIterable {
     var category: String {
         switch self {
         case .none: return ""
-        case .findPhone: return "기본"
+        case .findPhone, .showDate, .showBattery, .showSteps: return "기본"
         case .musicPlayPause, .musicNext, .musicPrevious: return "음악"
         case .recordLocation: return "위치"
         case .iftttWebhook, .shortcut, .urlRequest: return "고급"
@@ -146,6 +152,12 @@ final class ButtonActionManager: ObservableObject {
             break
         case .findPhone:
             handleFindMyPhone()
+        case .showDate:
+            showDateOnWatch()
+        case .showBattery:
+            showBatteryOnWatch()
+        case .showSteps:
+            showStepsOnWatch()
         case .musicPlayPause:
             musicController.playPause()
         case .musicNext:
@@ -193,13 +205,10 @@ final class ButtonActionManager: ObservableObject {
         extendedBits = []
         // 진동 1회
         bleManager?.sendCommand(name: "vibrator_start", value: [150])
-        // 캘리브레이션 모드 진입 → 펌웨어가 datetime으로 자동 복귀하지 않음
-        // recalibrate(true) 시 펌웨어가 바늘을 0(12시)으로 이동 → 안정 후 55로 전송
+        // 캘리브레이션 모드 진입 → 펌웨어가 바늘을 0(12시)으로 자동 이동
+        // 입력 완료 후 명령 번호 위치로 바로 이동 (11시 단계 생략)
         bleManager?.sendCommand(name: "recalibrate", value: true)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-            self?.moveHands(to: 55)
-        }
-        bleManager?.log("확장입력모드 시작 → 11시 (recalibrate)")
+        bleManager?.log("확장입력모드 시작 → 0시 (recalibrate)")
     }
 
     /// recalibrate(false) 후 datetime 전송 — 공식 앱과 동일한 플로우
@@ -241,10 +250,10 @@ final class ButtonActionManager: ObservableObject {
         bleManager?.sendCommand(name: "stepper_goto", value: [1, position])
     }
 
-    /// 55분 → 최종 위치 이동, 3초 유지 후 복귀 + 액션 실행
+    /// 0분 → 최종 위치 이동, 3초 유지 후 복귀 + 액션 실행
     private func showExtendedValue(_ value: Int) {
-        // 55분에서 최종 위치로 이동 (1.5초 대기 후)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+        // 0분에서 최종 위치로 바로 이동
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             guard let self else { return }
             self.moveHands(to: value)
             self.bleManager?.log("확장입력 바늘 → \(value)분")
@@ -283,6 +292,65 @@ final class ButtonActionManager: ObservableObject {
         default: kronabyDay = 0
         }
         bleManager?.sendCommand(name: "datetime", value: [c.year!, c.month!, c.day!, c.hour!, c.minute!, c.second!, kronabyDay])
+    }
+
+    // MARK: - Watch Display Actions
+
+    /// 오늘 날짜 표시: 시침→월(1~12→5분 단위), 분침→일(1~31)
+    private func showDateOnWatch() {
+        let comps = Calendar.current.dateComponents([.month, .day], from: Date())
+        let month = comps.month ?? 1  // 1~12
+        let day = comps.day ?? 1      // 1~31
+        let hourPos = month * 5       // 1월=5, 2월=10, ..., 12월=60→0
+        let minutePos = day           // 1일=1, 31일=31
+
+        bleManager?.sendCommand(name: "vibrator_start", value: [150])
+        bleManager?.sendCommand(name: "recalibrate", value: true)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            self?.bleManager?.sendCommand(name: "stepper_goto", value: [0, hourPos % 60])
+            self?.bleManager?.sendCommand(name: "stepper_goto", value: [1, minutePos])
+            self?.bleManager?.log("날짜 표시: \(month)월 \(day)일 (시침→\(hourPos % 60), 분침→\(minutePos))")
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
+            self?.exitRecalibrateAndSyncTime()
+        }
+    }
+
+    /// 배터리 잔량 표시: 분침→배터리%(0~100 → 0~59분 눈금)
+    private func showBatteryOnWatch() {
+        let percent = bleManager?.batteryInfo?[0] ?? 0
+        let minutePos = Int(Double(percent) / 100.0 * 59.0)  // 0%=0, 100%=59
+
+        bleManager?.sendCommand(name: "vibrator_start", value: [150])
+        bleManager?.sendCommand(name: "recalibrate", value: true)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            self?.bleManager?.sendCommand(name: "stepper_goto", value: [0, minutePos])
+            self?.bleManager?.sendCommand(name: "stepper_goto", value: [1, minutePos])
+            self?.bleManager?.log("배터리 표시: \(percent)% → \(minutePos)분 위치")
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
+            self?.exitRecalibrateAndSyncTime()
+        }
+    }
+
+    /// 걸음수 표시: 분침→걸음수/목표 비율(0~59분 눈금)
+    private func showStepsOnWatch() {
+        let steps = bleManager?.stepsInfo?[0] ?? 0
+        let goal = UserDefaults.standard.integer(forKey: "kronaby_step_goal_v2")
+        let effectiveGoal = goal > 0 ? goal : 5000
+        let ratio = min(Double(steps) / Double(effectiveGoal), 1.0)
+        let minutePos = Int(ratio * 59.0)  // 0%=0, 100%=59
+
+        bleManager?.sendCommand(name: "vibrator_start", value: [150])
+        bleManager?.sendCommand(name: "recalibrate", value: true)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            self?.bleManager?.sendCommand(name: "stepper_goto", value: [0, minutePos])
+            self?.bleManager?.sendCommand(name: "stepper_goto", value: [1, minutePos])
+            self?.bleManager?.log("걸음수 표시: \(steps)/\(effectiveGoal) (\(Int(ratio * 100))%) → \(minutePos)분 위치")
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
+            self?.exitRecalibrateAndSyncTime()
+        }
     }
 
     // MARK: - IFTTT
