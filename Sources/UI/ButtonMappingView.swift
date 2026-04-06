@@ -115,6 +115,9 @@ struct ButtonMappingView: View {
         switch action.type {
         case .none: return "없음"
         case .findPhone: return "폰 찾기"
+        case .showDate: return "날짜 확인"
+        case .showBattery: return "배터리"
+        case .showSteps: return "걸음수"
         case .musicPlayPause: return "재생/일시정지"
         case .musicNext: return "다음 곡"
         case .musicPrevious: return "이전 곡"
