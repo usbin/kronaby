@@ -436,7 +436,7 @@ extension BLEManager: CBPeripheralDelegate {
         }
         log("서비스 검색 재시도 \(serviceDiscoveryRetryCount)/3 — 2초 후")
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
-            guard let self, peripheral.state == .connected else { return }
+            guard let _ = self, peripheral.state == .connected else { return }
             peripheral.discoverServices(nil)
         }
     }

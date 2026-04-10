@@ -35,7 +35,7 @@ final class BackgroundSyncScheduler {
             // BLEManager 인스턴스를 NotificationCenter로 알림
             NotificationCenter.default.post(name: .backgroundSyncRequested, object: nil)
         }
-        task.setTaskCompletedWithSuccess(true)
+        task.setTaskCompleted(success: true)
     }
 }
 
