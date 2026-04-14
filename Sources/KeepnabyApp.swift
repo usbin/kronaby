@@ -48,7 +48,19 @@ struct KeepnabyApp: App {
                             ble.log("재전송: steps_target=\(stepGoal)")
                         }
 
-                        // 4. ANCS 필터 + alert_assign + remote_data
+                        // 4. DND (stillness)
+                        let ud = UserDefaults.standard
+                        let dndEnabled = ud.bool(forKey: "kronaby_dnd_enabled")
+                        if dndEnabled {
+                            let sh = ud.integer(forKey: "kronaby_dnd_start_h")
+                            let sm = ud.integer(forKey: "kronaby_dnd_start_m")
+                            let eh = ud.integer(forKey: "kronaby_dnd_end_h")
+                            let em = ud.integer(forKey: "kronaby_dnd_end_m")
+                            ble.sendCommand(name: "dnd", value: [1, sh, sm, eh, em])
+                            ble.log("재전송: DND \(sh):\(String(format: "%02d", sm))~\(eh):\(String(format: "%02d", em))")
+                        }
+
+                        // 5. ANCS 필터 + alert_assign + remote_data
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                             notificationMappingManager?.applyToWatch(ble: ble)
                             ble.log("재전송: ANCS 필터 + remote_data")

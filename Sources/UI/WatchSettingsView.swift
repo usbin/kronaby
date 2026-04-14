@@ -93,7 +93,7 @@ struct WatchSettingsView: View {
                         }
                     }
                     applyButton(id: "dnd") {
-                        ble.sendCommand(name: "stillness", value: [
+                        ble.sendCommand(name: "dnd", value: [
                             dndEnabled ? 1 : 0, dndStartHour, dndStartMin, dndEndHour, dndEndMin
                         ])
                         save(Self.dndEnabledKey, dndEnabled)
