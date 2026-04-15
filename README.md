@@ -147,5 +147,5 @@ MIT License
   - Added: 6시간 주기 BLE 강제 재연결 — iOS ANCS 보안 세션 만료 대응
 - v1.0.5
   - Fixed: 하루가 지나면 ancs 알림을 못 받게 되는 문제 수정
-- v1.0.6(예정)
-  - Modified: Kronaby Nord DnD 지원 안 함으로 ㅠ판명되어 기능 제거
+- v1.0.6
+  - Modified: Kronaby Nord DnD 지원 안 함으로 판명되어 기능 제거
