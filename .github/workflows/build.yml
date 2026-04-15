@@ -73,7 +73,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.user_tag.outputs.tag || format('build-{0}', github.run_number) }}
-          name: ${{ steps.user_tag.outputs.tag || format('Build #{0}', github.run_number) }}
+          name: ${{ steps.user_tag.outputs.tag || format('Build {0}', github.run_number) }}
           body: "Automated build from commit ${{ github.sha }}"
           files: Keepnaby.ipa
         env:
