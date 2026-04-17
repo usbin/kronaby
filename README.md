@@ -151,7 +151,9 @@ MIT License
   - Fixed: 하루가 지나면 ancs 알림을 못 받게 되는 문제 수정
 - v1.0.6
   - Modified: Kronaby Nord DnD 지원 안 함으로 판명되어 기능 제거, 재연결 로직 경량화
-- v1.1.0
-  - Added: DND 방해금지 기능 복원 (펌웨어 업데이트 후 commandMap에 `dnd` 추가 확인)
-  - Changed: 알림 매핑을 카테고리 기반에서 앱별(번들 ID) 기반으로 변경
-  - Added: 큐레이션된 앱 목록 30개 + 커스텀 번들 ID 추가 기능
+- v1.0.7
+  - Added
+    - DND 방해금지 기능 복원 (펌웨어 업데이트 후 commandMap에 `dnd` 추가 확인)
+  - Changed: 알림 매핑을 카테고리 기반에서 앱별(번들 ID) 기반 변경
+- v1.0.8
+  - Changed: 알림 매핑 카테고리 기반과 앱별 기반 둘다 제공으로 변경
