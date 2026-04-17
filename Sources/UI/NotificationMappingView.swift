@@ -60,8 +60,10 @@ struct NotificationMappingView: View {
                                             Text(app.bundleIdPrefix)
                                                 .font(.caption2)
                                                 .foregroundStyle(.secondary)
+                                                .lineLimit(1)
+                                                .minimumScaleFactor(0.7)
                                         }
-                                        Spacer()
+                                        Spacer(minLength: 4)
                                         Button {
                                             slot.appIds.remove(app.id)
                                             mappingManager.save()
@@ -199,11 +201,13 @@ struct AppPickerView: View {
                                 VStack(alignment: .leading) {
                                     Text(app.displayName)
                                         .foregroundStyle(.primary)
-                                    Text(app.truncatedPrefix)
+                                    Text(app.bundleIdPrefix)
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.7)
                                 }
-                                Spacer()
+                                Spacer(minLength: 4)
                                 if slot.appIds.contains(app.id) {
                                     Image(systemName: "checkmark.circle.fill")
                                         .foregroundStyle(.blue)
