@@ -66,6 +66,36 @@
   - `ancs_filter`를 시간대별로 토글하거나
   - iOS 측에서 ANCS 전달을 막아야 함 (현재 iOS API로는 불가 — Focus 모드로도 안 됨)
 
-## 결론
+## 이전 결론 (2026-04-15)
 
 해당 모델은 DND를 펌웨어 차원에서 지원하지 않는 것으로 판명되어 이슈 종료함.
+
+---
+
+## 재개: 펌웨어 업데이트 후 DND 지원 확인 (2026-04-17)
+
+### 발견 경위
+공식 Kronaby 앱 사용 중 DND(Quiet Hours) 설정 화면이 존재하는 것을 확인.
+공식 앱이 펌웨어를 업데이트한 것으로 추정되며, 업데이트된 펌웨어의 commandMap에 `dnd` 명령이 추가됨.
+
+### BLE 캡처 검증 (sysdiagnose + tshark)
+공식 앱에서 DND on/off 조작 후 sysdiagnose의 `bluetoothd-hci-latest.pklg`를 tshark로 분석:
+
+```
+[05:50:03] {28: [false, 22, 0, 6, 0]}  → DND OFF (22:00~06:00, 비활성)
+[05:50:12] {28: [true,  22, 0, 6, 0]}  → DND ON  (22:00~06:00, 활성)
+```
+
+- **Command ID 28** = `dnd` (업데이트된 펌웨어 기준, 이전 74개 commandMap에서는 `id_error`였던 자리)
+- **파라미터**: `[enabled(Bool), startHour, startMin, endHour, endMin]`
+- **핵심 차이**: enabled 값이 MsgPack **Bool** (`0xC3`=true, `0xC2`=false)이지 정수 `1`/`0`이 아님
+- commandMap 전체가 변경됨 (이전 74개 → 확장, ID 재배치: datetime 13→19, ancs_filter 4→5 등)
+
+### 해결
+- Keepnaby `WatchSettingsView.swift`에 DND 섹션 복원
+- `sendCommand(name: "dnd", value: [dndEnabled, startH, startM, endH, endM] as [Any])` — Bool 타입 유지
+- 기존 저장된 commandMap에 `dnd`가 없을 수 있으므로, "기기 정보 삭제" 후 재연결(새 핸드셰이크)로 갱신 필요
+- 펌웨어는 flash 메모리에 저장되므로 페어링 리셋으로 다운그레이드되지 않음
+
+### 이슈 최종 종료 (2026-04-17)
+펌웨어 업데이트 후 commandMap에 `dnd`가 포함되어 정상 지원 확인. 구현 완료.
